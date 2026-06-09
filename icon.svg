@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <clipPath id="c"><circle cx="256" cy="256" r="256"/></clipPath>
+    <radialGradient id="mg" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="#1a3a2a" stop-opacity="0"/>
+      <stop offset="65%" stop-color="#1a3a2a" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#1a3a2a" stop-opacity="0.96"/>
+    </radialGradient>
+    <radialGradient id="ag" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#4caf7d" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#4caf7d" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Base -->
+  <circle cx="256" cy="256" r="256" fill="#0f2318"/>
+  <!-- Map streets -->
+  <g clip-path="url(#c)">
+    <rect width="512" height="512" fill="#112b1c"/>
+    <line x1="0" y1="105" x2="512" y2="132" stroke="#1e4a2c" stroke-width="30"/>
+    <line x1="0" y1="215" x2="512" y2="222" stroke="#1e4a2c" stroke-width="16"/>
+    <line x1="0" y1="290" x2="512" y2="290" stroke="#1e4a2c" stroke-width="36"/>
+    <line x1="0" y1="370" x2="512" y2="378" stroke="#1e4a2c" stroke-width="16"/>
+    <line x1="0" y1="440" x2="512" y2="448" stroke="#1e4a2c" stroke-width="24"/>
+    <line x1="90" y1="0" x2="82" y2="512" stroke="#1e4a2c" stroke-width="16"/>
+    <line x1="185" y1="0" x2="180" y2="512" stroke="#1e4a2c" stroke-width="36"/>
+    <line x1="290" y1="0" x2="288" y2="512" stroke="#1e4a2c" stroke-width="16"/>
+    <line x1="375" y1="0" x2="374" y2="512" stroke="#1e4a2c" stroke-width="24"/>
+    <line x1="460" y1="0" x2="464" y2="512" stroke="#1e4a2c" stroke-width="16"/>
+    <line x1="0" y1="512" x2="512" y2="52" stroke="#1e4a2c" stroke-width="22"/>
+    <ellipse cx="415" cy="125" rx="80" ry="55" fill="#0e2535" opacity="0.8"/>
+    <rect cx="192" cy="240" width="80" height="48" rx="10" fill="#153d23"/>
+    <!-- Gradient overlay -->
+    <rect width="512" height="512" fill="url(#mg)"/>
+  </g>
+  <!-- Anchor glow -->
+  <ellipse cx="256" cy="238" rx="145" ry="145" fill="url(#ag)"/>
+  <!-- Anchor -->
+  <g transform="translate(256,238)">
+    <circle cx="0" cy="-78" r="44" fill="none" stroke="#7ecf9e" stroke-width="12"/>
+    <line x1="0" y1="-34" x2="0" y2="102" stroke="#7ecf9e" stroke-width="12" stroke-linecap="round"/>
+    <line x1="-74" y1="12" x2="74" y2="12" stroke="#7ecf9e" stroke-width="12" stroke-linecap="round"/>
+    <path d="M0 102 Q-78 102 -83 56" fill="none" stroke="#7ecf9e" stroke-width="12" stroke-linecap="round"/>
+    <path d="M0 102 Q78 102 83 56" fill="none" stroke="#7ecf9e" stroke-width="12" stroke-linecap="round"/>
+    <circle cx="0" cy="102" r="22" fill="#f9c94a"/>
+    <circle cx="0" cy="102" r="34" fill="#f9c94a" opacity="0.18"/>
+  </g>
+  <!-- Wordmark -->
+  <text x="256" y="393" text-anchor="middle" font-family="Georgia,serif" font-weight="700" font-size="52" fill="white" letter-spacing="2">YARD<tspan fill="#7ecf9e">SAILOR</tspan></text>
+  <text x="256" y="424" text-anchor="middle" font-family="Arial,sans-serif" font-size="19" fill="#7ecf9e" letter-spacing="4" font-weight="600">AI-POWERED</text>
+  <text x="256" y="449" text-anchor="middle" font-family="Arial,sans-serif" font-size="17" fill="rgba(255,255,255,0.5)" letter-spacing="3">SALE LOCATOR</text>
+</svg>

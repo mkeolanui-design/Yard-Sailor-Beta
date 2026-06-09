@@ -1,0 +1,1762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="YardSailor">
+<meta name="theme-color" content="#1a3a2a">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>YardSailor — AI-Powered Sale Locator</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f0; color: #1a1a1a; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* ── INVITE GATE ─────────────────────────────── */
+#inviteGate {
+  position: fixed; inset: 0; z-index: 9999;
+  background: linear-gradient(160deg, #0d2218 0%, #1a3a2a 50%, #0d2218 100%);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 32px 24px; text-align: center;
+}
+#inviteGate .gate-logo { font-size: 72px; margin-bottom: 8px; }
+#inviteGate h1 { font-size: 32px; font-weight: 800; color: white; letter-spacing: -1px; }
+#inviteGate h1 span { color: #7ecf9e; }
+#inviteGate .gate-sub { color: #7ecf9e; font-size: 13px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 40px; margin-top: 4px; }
+#inviteGate .gate-card {
+  background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 20px; padding: 28px 24px; width: 100%; max-width: 360px;
+}
+#inviteGate .gate-card p { color: rgba(255,255,255,0.7); font-size: 14px; margin-bottom: 20px; line-height: 1.5; }
+#inviteCode {
+  width: 100%; padding: 14px 18px; border-radius: 12px;
+  border: 2px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.08);
+  color: white; font-size: 18px; font-weight: 700; text-align: center;
+  letter-spacing: 3px; text-transform: uppercase; outline: none;
+  transition: border-color 0.2s; margin-bottom: 14px;
+}
+#inviteCode::placeholder { color: rgba(255,255,255,0.3); font-size: 14px; letter-spacing: 1px; text-transform: none; font-weight: 400; }
+#inviteCode:focus { border-color: #7ecf9e; }
+#inviteSubmit {
+  width: 100%; padding: 14px; border-radius: 12px;
+  background: #4caf7d; color: white; border: none;
+  font-size: 16px; font-weight: 700; cursor: pointer;
+  transition: background 0.2s; letter-spacing: 0.5px;
+}
+#inviteSubmit:hover { background: #3d9e6c; }
+#inviteError { color: #ff7875; font-size: 13px; margin-top: 10px; display: none; }
+#inviteGate .gate-footer { color: rgba(255,255,255,0.3); font-size: 12px; margin-top: 32px; }
+#inviteGate .gate-footer a { color: rgba(126,207,158,0.6); text-decoration: none; }
+
+/* HEADER */
+header {
+  background: #1a3a2a; color: white;
+  padding: 0 20px; height: 56px;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0; z-index: 1000;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+.logo { display: flex; align-items: center; }
+.logo-accent { color: #7ecf9e; }
+.header-right { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: #4caf7d; animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+/* SEARCH BAR */
+.search-bar {
+  background: white; border-bottom: 1px solid #e0e0d8;
+  padding: 10px 16px; flex-shrink: 0;
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+}
+.location-wrap { position: relative; flex: 1; min-width: 200px; }
+.location-wrap input {
+  width: 100%; padding: 8px 12px 8px 34px;
+  border: 1.5px solid #d0d0c8; border-radius: 20px;
+  font-size: 14px; outline: none; background: #fafaf8;
+  transition: border-color 0.2s;
+}
+.location-wrap input:focus { border-color: #4caf7d; background: white; }
+.location-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); font-size: 14px; }
+.search-wrap { position: relative; flex: 1; min-width: 160px; }
+.search-wrap input {
+  width: 100%; padding: 8px 12px 8px 32px;
+  border: 1.5px solid #d0d0c8; border-radius: 20px;
+  font-size: 14px; outline: none; background: #fafaf8;
+  transition: border-color 0.2s;
+}
+.search-wrap input:focus { border-color: #4caf7d; background: white; }
+.search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 13px; }
+.chip {
+  padding: 7px 14px; border: 1.5px solid #d0d0c8;
+  border-radius: 20px; background: white; font-size: 13px;
+  cursor: pointer; transition: all 0.15s; white-space: nowrap; font-weight: 500;
+}
+.chip:hover { border-color: #4caf7d; color: #2d7a52; }
+.chip.active { background: #e8f5ee; border-color: #4caf7d; color: #2d7a52; }
+.btn-locate {
+  background: #1a3a2a; color: white; border: none;
+  padding: 8px 16px; border-radius: 20px; font-size: 13px;
+  font-weight: 600; cursor: pointer; white-space: nowrap;
+  transition: background 0.2s;
+}
+.btn-locate:hover { background: #2d5a3e; }
+
+/* RESULTS BAR */
+.results-bar {
+  padding: 7px 16px; font-size: 12px; color: #666;
+  background: #fafaf8; border-bottom: 1px solid #e8e8e4;
+  display: flex; justify-content: space-between; align-items: center;
+  flex-shrink: 0;
+}
+.results-count strong { color: #1a1a1a; }
+.route-summary {
+  display: flex; align-items: center; gap: 8px;
+}
+.route-badge {
+  background: #1a3a2a; color: white; font-size: 11px;
+  font-weight: 700; padding: 3px 10px; border-radius: 10px;
+  cursor: pointer; transition: background 0.15s;
+}
+.route-badge:hover { background: #2d5a3e; }
+.route-badge.empty { background: #ccc; cursor: default; }
+
+/* SPONSOR BANNER */
+.sponsor-banner {
+  display: flex; align-items: center; gap: 12px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  border-bottom: 2px solid #e8b84b;
+  padding: 8px 16px; flex-shrink: 0;
+  position: relative; overflow: hidden;
+}
+.sponsor-banner::before {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(90deg, rgba(232,184,75,0.06) 0%, transparent 60%);
+  pointer-events: none;
+}
+.sponsor-label {
+  font-size: 9px; font-weight: 800; letter-spacing: 2px;
+  color: #e8b84b; text-transform: uppercase;
+  background: rgba(232,184,75,0.15); border: 1px solid rgba(232,184,75,0.4);
+  padding: 2px 7px; border-radius: 4px; white-space: nowrap; flex-shrink: 0;
+}
+.sponsor-video-wrap {
+  width: 64px; height: 44px; border-radius: 8px;
+  overflow: hidden; flex-shrink: 0;
+  border: 1px solid rgba(232,184,75,0.3);
+  background: #000;
+}
+.sponsor-video-wrap video { width: 100%; height: 100%; object-fit: cover; }
+.sponsor-info { flex: 1; min-width: 0; }
+.sponsor-name {
+  font-size: 13px; font-weight: 800; color: white;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  letter-spacing: 0.3px;
+}
+.sponsor-tagline {
+  font-size: 11px; color: rgba(255,255,255,0.6);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-top: 1px;
+}
+.sponsor-cta {
+  background: linear-gradient(135deg, #e8b84b, #d4a017);
+  color: #1a1a1a; font-size: 11px; font-weight: 800;
+  padding: 6px 12px; border-radius: 16px; border: none;
+  cursor: pointer; white-space: nowrap; flex-shrink: 0;
+  letter-spacing: 0.3px; transition: opacity 0.2s;
+}
+.sponsor-cta:hover { opacity: 0.85; }
+
+/* TOOLS PANEL */
+#toolsOverlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+  z-index: 8000; display: none; align-items: flex-end; justify-content: center;
+}
+#toolsOverlay.open { display: flex; }
+#toolsDrawer {
+  background: #1a2a1e; border-radius: 24px 24px 0 0;
+  width: 100%; max-width: 600px; padding: 16px 20px 32px;
+  max-height: 90vh; overflow-y: auto;
+  box-shadow: 0 -4px 32px rgba(0,0,0,0.5);
+}
+.tools-handle {
+  width: 40px; height: 4px; background: rgba(255,255,255,0.2);
+  border-radius: 2px; margin: 0 auto 18px;
+}
+.tools-section-title {
+  font-size: 11px; font-weight: 700; letter-spacing: 2px;
+  color: rgba(255,255,255,0.4); text-transform: uppercase;
+  margin: 16px 0 10px; padding-left: 2px;
+}
+.tools-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 10px; margin-bottom: 4px;
+}
+.tool-btn {
+  display: flex; flex-direction: column; align-items: flex-start;
+  background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 16px; padding: 14px 14px 12px;
+  cursor: pointer; transition: all 0.15s; text-align: left;
+  text-decoration: none;
+}
+.tool-btn:hover, .tool-btn:active { background: rgba(126,207,158,0.15); border-color: rgba(126,207,158,0.4); }
+.tool-icon { font-size: 28px; margin-bottom: 6px; }
+.tool-name { font-size: 13px; font-weight: 700; color: white; }
+.tool-desc { font-size: 11px; color: rgba(255,255,255,0.45); margin-top: 2px; line-height: 1.3; }
+
+/* ACCESSIBILITY BAR */
+#accessBar {
+  display: flex; align-items: center; gap: 10px;
+  background: #112b1c; border-bottom: 1px solid rgba(255,255,255,0.08);
+  padding: 6px 16px; flex-shrink: 0;
+}
+#accessBar span { font-size: 11px; color: rgba(255,255,255,0.45); letter-spacing: 1px; }
+.access-btn {
+  background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 8px; padding: 4px 12px; font-size: 14px; font-weight: 700;
+  cursor: pointer; transition: background 0.15s; line-height: 1.4;
+}
+.access-btn:hover { background: rgba(126,207,158,0.25); }
+
+/* CAMERA ZOOM */
+#cameraOverlay {
+  position: fixed; inset: 0; background: #000;
+  z-index: 9500; display: none; flex-direction: column;
+}
+#cameraOverlay.open { display: flex; }
+#cameraFeed { flex: 1; width: 100%; object-fit: cover; }
+#cameraControls {
+  background: rgba(0,0,0,0.85); padding: 16px 24px 32px;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+}
+#zoomSlider { width: 80%; accent-color: #7ecf9e; }
+#zoomLabel { color: white; font-size: 13px; font-weight: 600; }
+#closeCamera {
+  background: #e74c3c; color: white; border: none;
+  padding: 10px 28px; border-radius: 20px; font-size: 15px;
+  font-weight: 700; cursor: pointer;
+}
+
+/* MAIN LAYOUT */
+.main { display: flex; flex: 1; overflow: hidden; }
+
+/* MAP */
+#map { flex: 1; z-index: 1; }
+
+/* SIDEBAR */
+.sidebar {
+  width: 360px; overflow-y: auto; background: #f5f5f0;
+  border-left: 1px solid #e0e0d8; display: flex; flex-direction: column;
+}
+.sidebar::-webkit-scrollbar { width: 4px; }
+.sidebar::-webkit-scrollbar-thumb { background: #ccc; border-radius: 2px; }
+.sidebar-header {
+  padding: 10px 12px 6px; display: flex;
+  justify-content: space-between; align-items: center;
+  position: sticky; top: 0; background: #f5f5f0; z-index: 10;
+  border-bottom: 1px solid #e8e8e4;
+}
+.sidebar-header h3 { font-size: 13px; font-weight: 700; }
+.sort-select {
+  font-size: 12px; border: 1px solid #d0d0c8; border-radius: 8px;
+  padding: 3px 7px; background: white; outline: none; cursor: pointer;
+}
+
+/* SALE CARDS */
+.sale-card {
+  background: white; margin: 8px 10px; border-radius: 12px;
+  overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  transition: all 0.15s; cursor: pointer;
+  border: 2px solid transparent;
+}
+.sale-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.12); transform: translateY(-1px); }
+.sale-card.active { border-color: #4caf7d; }
+.sale-card.in-route { border-color: #f9a825; }
+.card-top { padding: 12px 14px 8px; display: flex; gap: 10px; align-items: flex-start; }
+.card-num {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: #1a3a2a; color: white;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; flex-shrink: 0; margin-top: 1px;
+}
+.card-num.route-num { background: #f9a825; }
+.card-info { flex: 1; }
+.card-title { font-size: 14px; font-weight: 700; line-height: 1.3; color: #1a1a1a; }
+.card-addr { font-size: 11px; color: #888; margin-top: 2px; }
+.card-dist {
+  font-size: 11px; font-weight: 700; color: #2d7a52;
+  background: #e8f5ee; padding: 2px 7px; border-radius: 8px;
+  white-space: nowrap; flex-shrink: 0;
+}
+.card-meta {
+  padding: 0 14px 8px; display: flex; gap: 10px;
+  font-size: 11px; color: #777; flex-wrap: wrap;
+}
+.card-desc {
+  padding: 0 14px 10px; font-size: 12px; color: #555;
+  line-height: 1.4; display: -webkit-box;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.card-actions {
+  padding: 8px 14px; border-top: 1px solid #f0f0ec;
+  display: flex; justify-content: space-between; align-items: center;
+  background: #fafaf8;
+}
+.card-btns { display: flex; gap: 6px; }
+.cbtn {
+  padding: 5px 11px; border-radius: 8px; font-size: 12px;
+  font-weight: 600; cursor: pointer; border: none; transition: all 0.15s;
+}
+.cbtn.view { background: #f0f0ec; color: #444; }
+.cbtn.view:hover { background: #e8e8e4; }
+.cbtn.add-route { background: #4caf7d; color: white; }
+.cbtn.add-route:hover { background: #3d9e6c; }
+.cbtn.remove-route { background: #fff3cd; color: #8a6800; }
+.cbtn.remove-route:hover { background: #ffe8a0; }
+.card-tag {
+  font-size: 10px; font-weight: 700; padding: 2px 7px;
+  border-radius: 8px; text-transform: uppercase; letter-spacing: 0.5px;
+}
+.tag-estate { background: #e8f0fe; color: #1a56aa; }
+.tag-garage { background: #fce8f3; color: #9c2f6e; }
+.tag-yard { background: #e8f5ee; color: #2d7a52; }
+.tag-moving { background: #fff3cd; color: #8a6800; }
+.tag-multi { background: #f3e8ff; color: #6e2d9c; }
+
+/* LOADING / EMPTY */
+.loading-state, .empty-state {
+  padding: 40px 20px; text-align: center; color: #888;
+}
+.loading-state .spinner {
+  width: 32px; height: 32px; border: 3px solid #e0e0d8;
+  border-top-color: #4caf7d; border-radius: 50%;
+  animation: spin 0.8s linear infinite; margin: 0 auto 12px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-state p { font-size: 14px; }
+.empty-state p { font-size: 14px; }
+.empty-state .emoji { font-size: 36px; margin-bottom: 10px; }
+
+/* ROUTE PANEL */
+.route-panel {
+  display: none; position: fixed; bottom: 20px; left: 50%;
+  transform: translateX(-50%);
+  background: #1a3a2a; color: white;
+  padding: 12px 20px; border-radius: 28px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  z-index: 1000; align-items: center; gap: 14px;
+  font-size: 14px; white-space: nowrap;
+}
+.route-panel.visible { display: flex; }
+.route-open-btn {
+  background: #4caf7d; color: white; border: none;
+  padding: 7px 16px; border-radius: 16px; font-size: 13px;
+  font-weight: 700; cursor: pointer; transition: background 0.15s;
+}
+.route-open-btn:hover { background: #3d9e6c; }
+.route-clear-btn {
+  background: rgba(255,255,255,0.15); color: white; border: none;
+  padding: 7px 12px; border-radius: 16px; font-size: 13px;
+  cursor: pointer; transition: background 0.15s;
+}
+.route-clear-btn:hover { background: rgba(255,255,255,0.25); }
+
+/* ── FEEDBACK BUTTON ─────────────────────────── */
+#feedbackBtn {
+  position: fixed; bottom: 24px; left: 20px; z-index: 800;
+  background: #1a3a2a; color: white; border: none;
+  padding: 10px 18px; border-radius: 24px; font-size: 13px;
+  font-weight: 700; cursor: pointer; box-shadow: 0 3px 12px rgba(0,0,0,0.25);
+  display: flex; align-items: center; gap: 6px;
+  transition: background 0.2s, transform 0.15s;
+}
+#feedbackBtn:hover { background: #2d5a3e; transform: translateY(-1px); }
+
+/* ── FEEDBACK MODAL ──────────────────────────── */
+#feedbackOverlay {
+  display: none; position: fixed; inset: 0; z-index: 2000;
+  background: rgba(0,0,0,0.5); align-items: flex-end; justify-content: center;
+}
+#feedbackOverlay.open { display: flex; }
+#feedbackModal {
+  background: white; border-radius: 24px 24px 0 0;
+  padding: 24px 24px 36px; width: 100%; max-width: 480px;
+  box-shadow: 0 -4px 30px rgba(0,0,0,0.2);
+  animation: slideUp 0.3s ease;
+}
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.fm-handle { width: 40px; height: 4px; background: #e0e0d8; border-radius: 2px; margin: 0 auto 18px; }
+.fm-title { font-size: 18px; font-weight: 700; color: #1a1a1a; margin-bottom: 4px; }
+.fm-sub { font-size: 13px; color: #888; margin-bottom: 18px; }
+.fm-types { display: flex; gap: 8px; margin-bottom: 18px; }
+.fm-type {
+  flex: 1; padding: 10px 8px; border: 2px solid #e0e0d8;
+  border-radius: 12px; text-align: center; cursor: pointer;
+  font-size: 13px; font-weight: 600; color: #555;
+  transition: all 0.15s; background: white;
+}
+.fm-type:hover { border-color: #4caf7d; color: #2d7a52; }
+.fm-type.selected { border-color: #4caf7d; background: #e8f5ee; color: #2d7a52; }
+.fm-label { font-size: 12px; font-weight: 600; color: #555; margin-bottom: 6px; display: block; }
+.fm-input {
+  width: 100%; padding: 10px 14px; border: 1.5px solid #e0e0d8;
+  border-radius: 10px; font-size: 14px; outline: none; margin-bottom: 12px;
+  transition: border-color 0.2s; font-family: inherit; resize: none;
+}
+.fm-input:focus { border-color: #4caf7d; }
+.fm-submit {
+  width: 100%; padding: 14px; background: #1a3a2a; color: white;
+  border: none; border-radius: 12px; font-size: 15px; font-weight: 700;
+  cursor: pointer; transition: background 0.2s;
+}
+.fm-submit:hover { background: #2d5a3e; }
+.fm-cancel { display: block; text-align: center; margin-top: 10px; font-size: 13px; color: #aaa; cursor: pointer; }
+.fm-cancel:hover { color: #555; }
+.fm-success { text-align: center; padding: 20px 0; }
+.fm-success .fm-emoji { font-size: 48px; margin-bottom: 10px; }
+.fm-success p { font-size: 15px; color: #555; }
+.fm-success strong { color: #1a3a2a; }
+
+/* TOAST */
+.toast {
+  position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+  background: #1a1a1a; color: white; padding: 10px 20px;
+  border-radius: 20px; font-size: 13px; z-index: 2000;
+  opacity: 0; transition: opacity 0.3s; pointer-events: none;
+}
+.toast.show { opacity: 1; }
+
+/* Leaflet custom marker */
+.cl-marker {
+  width: 32px; height: 32px; border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg); border: 2px solid white;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+.cl-marker.green { background: #1a3a2a; }
+.cl-marker.gold { background: #f9a825; }
+.cl-marker span {
+  display: block; width: 100%; height: 100%; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  transform: rotate(45deg); font-size: 11px; font-weight: 700; color: white;
+}
+</style>
+</head>
+<body>
+
+<!-- INVITE GATE - hidden for open beta -->
+<div id="inviteGate" style="display:none">
+  <svg width="140" height="140" viewBox="0 0 220 220" xmlns="http://www.w3.org/2000/svg" style="margin-bottom:10px;">
+    <defs>
+      <clipPath id="gc"><circle cx="110" cy="110" r="110"/></clipPath>
+      <radialGradient id="gmg" cx="50%" cy="50%" r="55%">
+        <stop offset="0%" stop-color="#0f2318" stop-opacity="0"/>
+        <stop offset="65%" stop-color="#0f2318" stop-opacity="0.6"/>
+        <stop offset="100%" stop-color="#0f2318" stop-opacity="0.96"/>
+      </radialGradient>
+      <radialGradient id="gag" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#4caf7d" stop-opacity="0.22"/>
+        <stop offset="100%" stop-color="#4caf7d" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+    <circle cx="110" cy="110" r="110" fill="#0f2318"/>
+    <g clip-path="url(#gc)">
+      <rect width="220" height="220" fill="#112b1c"/>
+      <line x1="0" y1="50" x2="220" y2="62" stroke="#1e4a2c" stroke-width="14"/>
+      <line x1="0" y1="95" x2="220" y2="98" stroke="#1e4a2c" stroke-width="6"/>
+      <line x1="0" y1="125" x2="220" y2="125" stroke="#1e4a2c" stroke-width="16"/>
+      <line x1="0" y1="162" x2="220" y2="166" stroke="#1e4a2c" stroke-width="6"/>
+      <line x1="42" y1="0" x2="39" y2="220" stroke="#1e4a2c" stroke-width="6"/>
+      <line x1="85" y1="0" x2="83" y2="220" stroke="#1e4a2c" stroke-width="16"/>
+      <line x1="126" y1="0" x2="125" y2="220" stroke="#1e4a2c" stroke-width="6"/>
+      <line x1="166" y1="0" x2="168" y2="220" stroke="#1e4a2c" stroke-width="10"/>
+      <line x1="0" y1="220" x2="220" y2="18" stroke="#1e4a2c" stroke-width="9"/>
+      <ellipse cx="172" cy="52" rx="32" ry="20" fill="#0e2535" opacity="0.8"/>
+      <rect x="88" y="100" width="36" height="22" rx="5" fill="#153d23"/>
+      <rect width="220" height="220" fill="url(#gmg)"/>
+    </g>
+    <ellipse cx="110" cy="100" rx="58" ry="58" fill="url(#gag)"/>
+    <g transform="translate(110,100)">
+      <circle cx="0" cy="-32" r="18" fill="none" stroke="#7ecf9e" stroke-width="4.5"/>
+      <line x1="0" y1="-14" x2="0" y2="40" stroke="#7ecf9e" stroke-width="4.5" stroke-linecap="round"/>
+      <line x1="-30" y1="5" x2="30" y2="5" stroke="#7ecf9e" stroke-width="4.5" stroke-linecap="round"/>
+      <path d="M0 40 Q-32 40 -34 22" fill="none" stroke="#7ecf9e" stroke-width="4.5" stroke-linecap="round"/>
+      <path d="M0 40 Q32 40 34 22" fill="none" stroke="#7ecf9e" stroke-width="4.5" stroke-linecap="round"/>
+      <circle cx="0" cy="40" r="9" fill="#f9c94a"/>
+      <circle cx="0" cy="40" r="15" fill="#f9c94a" opacity="0.18"/>
+    </g>
+    <text x="110" y="174" text-anchor="middle" font-family="Georgia,serif" font-weight="700" font-size="18" fill="white" letter-spacing="1">YARD<tspan fill="#7ecf9e">SAILOR</tspan></text>
+  </svg>
+  <div class="gate-sub">Private Beta</div>
+  <div class="gate-card">
+    <p>You've been invited to test YardSailor — the AI-powered yard sale locator. Enter your invite code to get started.</p>
+    <input id="inviteCode" type="text" placeholder="Enter your invite code" autocomplete="off" autocorrect="off" spellcheck="false" />
+    <button id="inviteSubmit" onclick="checkInviteCode()">Enter App →</button>
+    <div id="inviteError">❌ Invalid code. Check your invite and try again.</div>
+  </div>
+  <div class="gate-footer">Don't have a code? <a href="mailto:mkeolanui@gmail.com">Request access</a></div>
+</div>
+
+<header>
+  <div class="logo">
+    <!-- Compact header logo -->
+    <svg width="148" height="36" viewBox="0 0 380 90" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+      <defs>
+        <clipPath id="hdr"><rect width="380" height="90" rx="0"/></clipPath>
+        <radialGradient id="hfade" cx="28%" cy="50%" r="55%">
+          <stop offset="0%" stop-color="#0f2318" stop-opacity="0"/>
+          <stop offset="55%" stop-color="#0f2318" stop-opacity="0.55"/>
+          <stop offset="100%" stop-color="#0f2318" stop-opacity="0.9"/>
+        </radialGradient>
+        <radialGradient id="hglow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#4caf7d" stop-opacity="0.2"/>
+          <stop offset="100%" stop-color="#4caf7d" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <g clip-path="url(#hdr)">
+        <rect width="380" height="90" fill="#112b1c"/>
+        <line x1="0" y1="22" x2="380" y2="28" stroke="#1e4a2c" stroke-width="10"/>
+        <line x1="0" y1="50" x2="380" y2="50" stroke="#1e4a2c" stroke-width="5"/>
+        <line x1="0" y1="72" x2="380" y2="74" stroke="#1e4a2c" stroke-width="10"/>
+        <line x1="38" y1="0" x2="36" y2="90" stroke="#1e4a2c" stroke-width="5"/>
+        <line x1="72" y1="0" x2="71" y2="90" stroke="#1e4a2c" stroke-width="10"/>
+        <line x1="110" y1="0" x2="109" y2="90" stroke="#1e4a2c" stroke-width="5"/>
+        <line x1="148" y1="0" x2="148" y2="90" stroke="#1e4a2c" stroke-width="5"/>
+        <line x1="0" y1="90" x2="380" y2="0" stroke="#1e4a2c" stroke-width="7" opacity="0.5"/>
+        <ellipse cx="340" cy="68" rx="48" ry="26" fill="#0e2535" opacity="0.6"/>
+        <rect width="380" height="90" fill="url(#hfade)"/>
+      </g>
+      <ellipse cx="44" cy="45" rx="34" ry="34" fill="url(#hglow)"/>
+      <g transform="translate(44,45)">
+        <circle cx="0" cy="-18" r="11" fill="none" stroke="#7ecf9e" stroke-width="3.5"/>
+        <line x1="0" y1="-7" x2="0" y2="22" stroke="#7ecf9e" stroke-width="3.5" stroke-linecap="round"/>
+        <line x1="-18" y1="3" x2="18" y2="3" stroke="#7ecf9e" stroke-width="3.5" stroke-linecap="round"/>
+        <path d="M0 22 Q-19 22 -20 12" fill="none" stroke="#7ecf9e" stroke-width="3.5" stroke-linecap="round"/>
+        <path d="M0 22 Q19 22 20 12" fill="none" stroke="#7ecf9e" stroke-width="3.5" stroke-linecap="round"/>
+        <circle cx="0" cy="22" r="5" fill="#f9c94a"/>
+        <circle cx="0" cy="22" r="9" fill="#f9c94a" opacity="0.2"/>
+      </g>
+      <text x="73" y="34" font-family="Georgia,serif" font-weight="700" font-size="28" fill="white" letter-spacing="-0.5">Yard<tspan fill="#7ecf9e">Sailor</tspan></text>
+      <text x="75" y="54" font-family="Arial,sans-serif" font-size="9" fill="rgba(255,255,255,0.35)" letter-spacing="2.5">AI-POWERED SALE LOCATOR</text>
+    </svg>
+  </div>
+  <div class="header-right">
+    <button onclick="openTools()" style="background:#4caf7d;color:white;border:none;padding:8px 18px;border-radius:20px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;">
+      🧰 Tools
+    </button>
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText" style="color:#aaa;">Detecting location…</span>
+    <span style="color:#4caf7d;font-size:10px;margin-left:8px;opacity:0.7;">v10</span>
+  </div>
+</header>
+
+<!-- ACCESSIBILITY BAR -->
+<div id="accessBar">
+  <span>TEXT SIZE</span>
+  <button class="access-btn" onclick="changeFont(-2)">A−</button>
+  <button class="access-btn" onclick="changeFont(2)">A+</button>
+  <button class="access-btn" onclick="changeFont(0)" style="font-size:11px;padding:4px 10px;">Reset</button>
+</div>
+
+<!-- TOOLS DRAWER -->
+<div id="toolsOverlay" onclick="closeTools(event)">
+  <div id="toolsDrawer">
+    <div class="tools-handle"></div>
+
+    <div class="tools-section-title">🔍 Identify &amp; Look Up</div>
+    <div class="tools-grid">
+      <a class="tool-btn" onclick="openGoogleLens()">
+        <span class="tool-icon">🔍</span>
+        <span class="tool-name">Google Lens</span>
+        <span class="tool-desc">Point camera at any item to identify it</span>
+      </a>
+      <a class="tool-btn" onclick="openCamera()">
+        <span class="tool-icon">📸</span>
+        <span class="tool-name">Camera Zoom</span>
+        <span class="tool-desc">Zoom in on items with your camera</span>
+      </a>
+    </div>
+
+    <div class="tools-section-title">💰 Check Value</div>
+    <div class="tools-grid">
+      <a class="tool-btn" href="https://www.ebay.com/sh/research?marketplace=EBAY-US&tabName=SOLD" target="_blank">
+        <span class="tool-icon">📦</span>
+        <span class="tool-name">eBay Sold</span>
+        <span class="tool-desc">See what items actually sold for</span>
+      </a>
+      <a class="tool-btn" href="https://www.amazon.com" target="_blank">
+        <span class="tool-icon">🛒</span>
+        <span class="tool-name">Amazon</span>
+        <span class="tool-desc">Check current retail prices</span>
+      </a>
+      <a class="tool-btn" href="https://www.worthpoint.com" target="_blank">
+        <span class="tool-icon">🏺</span>
+        <span class="tool-name">WorthPoint</span>
+        <span class="tool-desc">Antique &amp; collectible price history</span>
+      </a>
+      <a class="tool-btn" href="https://www.pricecharting.com" target="_blank">
+        <span class="tool-icon">🎮</span>
+        <span class="tool-name">PriceCharting</span>
+        <span class="tool-desc">Games, toys &amp; pop culture values</span>
+      </a>
+      <a class="tool-btn" href="https://www.kovels.com" target="_blank">
+        <span class="tool-icon">🪑</span>
+        <span class="tool-name">Kovels</span>
+        <span class="tool-desc">Antique &amp; vintage price guide</span>
+      </a>
+      <a class="tool-btn" href="https://www.liveauctioneers.com" target="_blank">
+        <span class="tool-icon">🔨</span>
+        <span class="tool-name">LiveAuctioneers</span>
+        <span class="tool-desc">Auction results for rare items</span>
+      </a>
+    </div>
+
+    <div class="tools-section-title">🥇 Metal &amp; Jewelry ID</div>
+    <div class="tools-grid">
+      <a class="tool-btn" href="https://925-1000.com" target="_blank">
+        <span class="tool-icon">🥈</span>
+        <span class="tool-name">Silver Hallmarks</span>
+        <span class="tool-desc">Look up silver stamps &amp; marks</span>
+      </a>
+      <a class="tool-btn" href="https://www.gold-traders.co.uk/gold-hallmarks" target="_blank">
+        <span class="tool-icon">🥇</span>
+        <span class="tool-name">Gold Hallmarks</span>
+        <span class="tool-desc">Identify gold purity &amp; maker marks</span>
+      </a>
+      <a class="tool-btn" href="https://www.gia.edu/gem-education/gem-identification" target="_blank">
+        <span class="tool-icon">💎</span>
+        <span class="tool-name">GIA Gem ID</span>
+        <span class="tool-desc">Gemstone identification guide</span>
+      </a>
+      <a class="tool-btn" href="https://www.coinappraiser.com" target="_blank">
+        <span class="tool-icon">🪙</span>
+        <span class="tool-name">Coin Values</span>
+        <span class="tool-desc">Look up coin prices &amp; rarity</span>
+      </a>
+    </div>
+
+    <div style="margin-top:20px;text-align:center;">
+      <button onclick="closeToolsBtn()" style="background:rgba(255,255,255,0.1);color:white;border:none;padding:12px 40px;border-radius:20px;font-size:15px;font-weight:700;cursor:pointer;">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- CAMERA ZOOM OVERLAY -->
+<div id="cameraOverlay">
+  <video id="cameraFeed" autoplay playsinline></video>
+  <div id="cameraControls">
+    <div id="zoomLabel">Zoom: 1×</div>
+    <input type="range" id="zoomSlider" min="1" max="5" step="0.1" value="1" oninput="setCameraZoom(this.value)">
+    <button id="closeCamera" onclick="closeCameraZoom()">✕ Close Camera</button>
+  </div>
+</div>
+
+<div class="search-bar">
+  <div class="location-wrap">
+    <span class="location-icon">📍</span>
+    <input type="text" id="locationInput" placeholder="Your city or zip code…" />
+  </div>
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="searchInput" placeholder="Search items, e.g. furniture…" />
+  </div>
+  <div class="chip active" id="chipWeekend" onclick="toggleChip(this)">📅 This Weekend</div>
+  <div class="chip" id="chipEstate" onclick="toggleChip(this)">🏛 Estate</div>
+  <div class="chip" id="chipGarage" onclick="toggleChip(this)">🏠 Garage</div>
+  <select id="radiusSelect" class="chip" style="border:1.5px solid #d0d0c8;padding:7px 10px;font-size:13px;font-weight:500;cursor:pointer;" onchange="onRadiusChange()">
+    <option value="1">Within 1 mi</option>
+    <option value="3" selected>Within 3 mi</option>
+    <option value="5">Within 5 mi</option>
+    <option value="10">Within 10 mi</option>
+    <option value="25">Within 25 mi</option>
+  </select>
+  <button class="btn-locate" onclick="locateMe()">📡 Find Me</button>
+</div>
+
+<div class="results-bar">
+  <div class="results-count" id="resultsCount"><strong>0 sales</strong> found near you</div>
+  <div class="route-summary">
+    <span id="routeCount" style="font-size:12px;color:#888;"></span>
+    <div class="route-badge" id="plotRouteBtn" onclick="plotClosestToFarthest()" style="background:#2d5a3e;margin-right:4px;">📍 Plot Route</div>
+    <div class="route-badge empty" id="openRouteBtn" onclick="openRoute()">🗺 Open in Maps</div>
+  </div>
+</div>
+
+<!-- SPONSOR BANNER — Attic to Basement -->
+<div class="sponsor-banner">
+  <span class="sponsor-label">Sponsored</span>
+  <div class="sponsor-video-wrap">
+    <video autoplay muted loop playsinline preload="auto">
+      <source src="atb2.mp4" type="video/mp4">
+    </video>
+  </div>
+  <div class="sponsor-info">
+    <div class="sponsor-name">Attic to Basement</div>
+    <div class="sponsor-tagline">Northern California's Premier Estate Sale Company</div>
+  </div>
+  <button class="sponsor-cta" onclick="window.open('https://www.estatesales.net','_blank')">Learn More</button>
+</div>
+
+<div class="main">
+  <div id="map"></div>
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <h3 id="sidebarTitle">Sales</h3>
+      <select class="sort-select" id="sortSelect" onchange="sortAndRender()">
+        <option value="distance">Sort: Distance</option>
+        <option value="date">Sort: Date</option>
+        <option value="title">Sort: Name</option>
+      </select>
+    </div>
+    <div id="listingsContainer">
+      <div class="loading-state">
+        <div class="spinner"></div>
+        <p>Finding sales near you…</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="route-panel" id="routePanel">
+  <span>🗺 <strong id="routeStopCount">0 stops</strong> in your route</span>
+  <button class="route-open-btn" onclick="openRoute()">Open in Google Maps →</button>
+  <button class="route-clear-btn" onclick="clearRoute()">✕ Clear</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Hidden Netlify form for build-time detection -->
+<form name="yardsailor-feedback" netlify netlify-honeypot="bot-field" hidden>
+  <input type="hidden" name="form-name" value="yardsailor-feedback"/>
+  <input name="type"/>
+  <input name="name"/>
+  <input name="message"/>
+  <input name="page"/>
+</form>
+
+<!-- Floating feedback button -->
+<button id="feedbackBtn" onclick="openFeedback()">💬 Feedback</button>
+
+<!-- Feedback modal -->
+<div id="feedbackOverlay" onclick="overlayClick(event)">
+  <div id="feedbackModal">
+    <div class="fm-handle"></div>
+    <div id="fmForm">
+      <div class="fm-title">Share your thoughts</div>
+      <div class="fm-sub">Help make YardSailor better — every bit counts.</div>
+      <div class="fm-types">
+        <div class="fm-type selected" id="fmTypeFeedback" onclick="selectType('feedback')">💡 Feedback</div>
+        <div class="fm-type" id="fmTypeBug" onclick="selectType('bug')">🐛 Bug Report</div>
+        <div class="fm-type" id="fmTypeIdea" onclick="selectType('idea')">✨ Feature Idea</div>
+      </div>
+      <label class="fm-label">Your name (optional)</label>
+      <input class="fm-input" id="fmName" type="text" placeholder="e.g. Sarah"/>
+      <label class="fm-label" id="fmMsgLabel">What's on your mind?</label>
+      <textarea class="fm-input" id="fmMessage" rows="4" placeholder="Tell us what you think…"></textarea>
+      <button class="fm-submit" onclick="submitFeedback()">Send →</button>
+      <span class="fm-cancel" onclick="closeFeedback()">Cancel</span>
+    </div>
+    <div id="fmSuccess" class="fm-success" style="display:none;">
+      <div class="fm-emoji">🙏</div>
+      <p><strong>Thanks so much!</strong><br>Your feedback goes straight to Mike and helps shape the app.</p>
+      <button class="fm-submit" style="margin-top:18px;" onclick="closeFeedback()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────────────────────
+const state = {
+  map: null,
+  userLat: null,   // actual GPS/IP lat
+  userLng: null,   // actual GPS/IP lng
+  searchLat: null, // center used for current search (city center or actual)
+  searchLng: null,
+  cityLabel: '',
+  listings: [],
+  filtered: [],
+  route: [],
+  markers: {},
+  routeLine: null,
+  radiusCircle: null,
+  chips: { weekend: true, estate: false, garage: false }
+};
+
+// ─── CRAIGSLIST CITY MAP ─────────────────────────────────────────────────────
+const CL_CITIES = [
+  {id:'honolulu',lat:21.306,lng:-157.858},
+  {id:'losangeles',lat:34.052,lng:-118.244},
+  {id:'sfbay',lat:37.774,lng:-122.419},
+  {id:'seattle',lat:47.606,lng:-122.332},
+  {id:'portland',lat:45.523,lng:-122.676},
+  {id:'denver',lat:39.739,lng:-104.984},
+  {id:'phoenix',lat:33.449,lng:-112.074},
+  {id:'lasvegas',lat:36.174,lng:-115.136},
+  {id:'sandiego',lat:32.715,lng:-117.157},
+  {id:'sacramento',lat:38.581,lng:-121.494},
+  {id:'dallas',lat:32.776,lng:-96.797},
+  {id:'houston',lat:29.760,lng:-95.370},
+  {id:'austin',lat:30.267,lng:-97.743},
+  {id:'sanantonio',lat:29.424,lng:-98.494},
+  {id:'chicago',lat:41.878,lng:-87.629},
+  {id:'detroit',lat:42.332,lng:-83.047},
+  {id:'minneapolis',lat:44.979,lng:-93.265},
+  {id:'milwaukee',lat:43.038,lng:-87.906},
+  {id:'stlouis',lat:38.627,lng:-90.197},
+  {id:'kansascity',lat:39.099,lng:-94.578},
+  {id:'indianapolis',lat:39.768,lng:-86.158},
+  {id:'columbus',lat:39.961,lng:-82.999},
+  {id:'cleveland',lat:41.499,lng:-81.695},
+  {id:'pittsburgh',lat:40.440,lng:-79.996},
+  {id:'atlanta',lat:33.749,lng:-84.388},
+  {id:'nashville',lat:36.165,lng:-86.784},
+  {id:'charlotte',lat:35.227,lng:-80.843},
+  {id:'raleigh',lat:35.779,lng:-78.638},
+  {id:'miami',lat:25.761,lng:-80.191},
+  {id:'orlando',lat:28.538,lng:-81.379},
+  {id:'tampa',lat:27.950,lng:-82.459},
+  {id:'jacksonville',lat:30.332,lng:-81.655},
+  {id:'neworleans',lat:29.951,lng:-90.071},
+  {id:'memphis',lat:35.149,lng:-90.048},
+  {id:'newyork',lat:40.712,lng:-74.005},
+  {id:'boston',lat:42.358,lng:-71.063},
+  {id:'philadelphia',lat:39.952,lng:-75.163},
+  {id:'washingtondc',lat:38.907,lng:-77.037},
+  {id:'baltimore',lat:39.290,lng:-76.612},
+  {id:'richmond',lat:37.540,lng:-77.436},
+  {id:'norfolk',lat:36.850,lng:-76.285},
+  {id:'buffalo',lat:42.886,lng:-78.878},
+  {id:'rochester',lat:43.161,lng:-77.611},
+  {id:'albany',lat:42.651,lng:-73.754},
+  {id:'hartford',lat:41.763,lng:-72.685},
+  {id:'saltlakecity',lat:40.760,lng:-111.891},
+  {id:'albuquerque',lat:35.084,lng:-106.651},
+  {id:'tucson',lat:32.253,lng:-110.912},
+  {id:'omaha',lat:41.257,lng:-95.995},
+  {id:'wichita',lat:37.687,lng:-97.330},
+  {id:'tulsa',lat:36.153,lng:-95.992},
+  {id:'oklahomacity',lat:35.467,lng:-97.517},
+  {id:'louisville',lat:38.252,lng:-85.758},
+  {id:'boise',lat:43.615,lng:-116.202},
+  {id:'spokane',lat:47.658,lng:-117.426},
+  {id:'anchorage',lat:61.218,lng:-149.900}
+];
+
+// ─── DEMO FALLBACK DATA ───────────────────────────────────────────────────────
+function getDemoListings(lat, lng) {
+  const data = [
+    [[0.012,-0.008],'Big Estate Sale — Furniture & Antiques','Beautiful furniture, vintage lamps, china sets, books, artwork. Estate of longtime resident.','Estate','Sat 7am–1pm'],
+    [[-0.015,0.020],'Garage Sale — Moving Everything Must Go!','Relocating out of state. Couch, dining table, washer/dryer, clothes, tools, kitchen items.','Garage','Sat–Sun 8am–3pm'],
+    [[0.025,0.010],'Multi-Family Yard Sale','Three families selling together — baby items, clothing, garden tools, bikes, toys, books.','Multi-Family','Sat 6am–2pm'],
+    [[-0.008,-0.022],'Downsizing Sale — Mid-Century Finds','Teak furniture, vinyl records, reel-to-reel player, vintage lamps, kitchen items.','Yard','Sun 7am–12pm'],
+    [[0.030,-0.015],'Community Garage Sale','Neighborhood-wide event. Dozens of households. Maps at entrance. Rain or shine.','Community','Sat–Sun 7am–4pm'],
+    [[0.005,0.035],'Moving Sale — Electronics & More','Flat screens, laptops, gaming gear, speakers, patio furniture, misc. household items.','Moving','Sat 8am–2pm'],
+    [[-0.022,0.012],'Weekend Yard Sale — Clothes & Kids Stuff','Children\'s clothes 0–10yrs, strollers, toys, books, adult clothing. Most items under $5.','Yard','Sun 8am–1pm'],
+    [[0.018,-0.030],'Collector\'s Sale — Vintage Records & Art','Vinyl records, original prints, pottery, vintage cameras, collectibles, antique jewelry.','Estate','Sat 7am–3pm'],
+    [[-0.032,0.005],'Huge Multi-Family Sale — 4 Households','Furniture, appliances, exercise equipment, holiday decor, books, clothes. Everything priced to go!','Multi-Family','Sat 7am–2pm'],
+    [[0.008,0.042],'Estate Sale — Antiques & Collectibles','China, crystal, silver, vintage jewelry, old books, oil paintings, grandfather clock.','Estate','Sat–Sun 9am–4pm'],
+    [[0.038,0.018],'Garage Cleanout Sale','Power tools, hand tools, outdoor equipment, ladders, sports gear, golf clubs, fishing tackle.','Garage','Sat 7am–1pm'],
+    [[-0.018,-0.038],'Moving Sale — Quality Furniture','Pottery Barn sofa, dining set, bed frames, dressers, lamps. All items in excellent condition.','Moving','Sun 8am–2pm'],
+    [[0.042,-0.008],'Neighborhood Block Sale','Over 20 families participating. Food trucks on site. Great deals all day Saturday.','Community','Sat 7am–3pm'],
+    [[-0.005,0.028],'Vintage & Retro Sale','70s–90s collectibles, vintage clothing, records, posters, toys, video games, action figures.','Yard','Sat 8am–12pm'],
+    [[0.022,0.038],'Baby & Kids Mega Sale','Strollers, cribs, car seats, high chairs, clothes newborn–12, toys, books, educational items.','Yard','Sat 7am–11am'],
+    [[-0.040,-0.012],'Estate Sale — 3-Day Event','Large home with decades of collections. Antiques, artwork, jewelry, furniture, tools, garden.','Estate','Fri–Sun 9am–5pm'],
+    [[0.015,0.055],'Garage Sale — Sports & Outdoor','Bikes, kayak, camping gear, weights, treadmill, golf clubs, skis. Great condition.','Garage','Sat 8am–2pm'],
+    [[-0.028,0.032],'Sunday Yard Sale','General household items, clothes, small appliances, décor, picture frames, misc. everything goes.','Yard','Sun 7am–1pm'],
+    [[0.050,0.022],'Moving to Assisted Living Sale','70 years of quality items. Furniture, jewelry, china, kitchen, artwork, garden tools.','Estate','Sat 9am–3pm'],
+    [[-0.012,-0.048],'Craft & Hobby Sale','Sewing machines, fabric, yarn, scrapbooking supplies, art supplies, jewelry-making materials.','Yard','Sat 8am–1pm'],
+    [[0.034,-0.032],'Tech & Electronics Sale','iMac, iPads, cameras, drones, smart home devices, cables, accessories. All tested and working.','Moving','Sat 9am–2pm'],
+    [[-0.045,0.022],'Huge Garage Sale — Priced to Sell','3-car garage packed full. Something for everyone. Cash only. All sales final.','Garage','Sat 6am–12pm'],
+    [[0.008,-0.055],'Antique & Estate Sale','Victorian furniture, silver flatware, vintage maps, Native American art, Persian rugs.','Estate','Sat–Sun 10am–4pm'],
+    [[0.028,-0.042],'Outdoor & Patio Sale','Patio sets, outdoor furniture, planters, garden art, hoses, tools, BBQ grill, fire pit.','Yard','Sat 8am–2pm'],
+    [[-0.055,0.015],'Fashion & Accessories Sale','Designer clothes, handbags, shoes, jewelry, scarves. Brands: Coach, Kate Spade, Lululemon.','Yard','Sat 9am–2pm'],
+  ];
+  return data.map(([off, title, desc, type, date], i) => ({
+    id: 'demo_' + i,
+    title, description: desc, type, date,
+    lat: lat + off[0], lng: lng + off[1],
+    url: '#',
+    dist: haversine(lat, lng, lat + off[0], lng + off[1]),
+    isDemo: true
+  }));
+}
+
+// ─── UTILS ────────────────────────────────────────────────────────────────────
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 3958.8;
+  const dLat = (lat2-lat1)*Math.PI/180;
+  const dLng = (lng2-lng1)*Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function findNearestCLCity(lat, lng) {
+  let best = CL_CITIES[0], bestDist = Infinity;
+  for (const c of CL_CITIES) {
+    const d = Math.sqrt((lat-c.lat)**2 + (lng-c.lng)**2);
+    if (d < bestDist) { bestDist = d; best = c; }
+  }
+  return best.id;
+}
+
+function guessType(title='', desc='') {
+  const t = (title + ' ' + desc).toLowerCase();
+  if (t.includes('estate')) return 'Estate';
+  if (t.includes('moving')) return 'Moving';
+  if (t.includes('multi') || t.includes('community') || t.includes('neighborhood')) return 'Multi-Family';
+  if (t.includes('garage')) return 'Garage';
+  return 'Yard';
+}
+
+function typeTag(type) {
+  const map = { 'Estate':'tag-estate','Garage':'tag-garage','Yard':'tag-yard','Moving':'tag-moving','Multi-Family':'tag-multi','Community':'tag-multi' };
+  return `<span class="card-tag ${map[type]||'tag-yard'}">${type}</span>`;
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ─── MAP ──────────────────────────────────────────────────────────────────────
+function initMap(lat, lng) {
+  if (state.map) return;
+  state.map = L.map('map', { zoomControl: true }).setView([lat, lng], 13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
+    maxZoom: 19
+  }).addTo(state.map);
+
+  // User marker
+  const um = L.circleMarker([lat, lng], {
+    radius: 10, fillColor: '#4caf7d', color: 'white',
+    weight: 3, fillOpacity: 1
+  }).addTo(state.map);
+  um._isUserMarker = true;
+  um.bindPopup('<b>📍 You are here</b>');
+}
+
+function addMarkers(listings) {
+  // Clear existing
+  Object.values(state.markers).forEach(m => m.remove());
+  state.markers = {};
+
+  listings.forEach((listing, idx) => {
+    if (!listing.lat || !listing.lng) return;
+
+    const inRoute = state.route.some(r => r.id === listing.id);
+    const color = inRoute ? '#f9a825' : '#1a3a2a';
+    const icon = L.divIcon({
+      html: `<div style="width:28px;height:28px;background:${color};border:2px solid white;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;"><span style="transform:rotate(45deg);color:white;font-size:11px;font-weight:700;display:block;text-align:center;line-height:24px;">${idx+1}</span></div>`,
+      iconSize: [28, 28],
+      iconAnchor: [14, 28],
+      className: ''
+    });
+
+    const marker = L.marker([listing.lat, listing.lng], { icon })
+      .addTo(state.map)
+      .bindPopup(`
+        <div style="font-family:-apple-system,sans-serif;min-width:180px;">
+          <div style="font-weight:700;font-size:13px;margin-bottom:4px;">${listing.title}</div>
+          <div style="font-size:11px;color:#666;margin-bottom:6px;">📅 ${listing.date||'This weekend'}</div>
+          <div style="font-size:11px;color:#555;margin-bottom:8px;">${listing.description ? listing.description.slice(0,100)+'…' : ''}</div>
+          <a href="${listing.url}" target="_blank" style="font-size:12px;color:#4caf7d;font-weight:600;">View listing →</a>
+        </div>
+      `);
+
+    marker.on('click', () => highlightCard(listing.id));
+    state.markers[listing.id] = marker;
+  });
+}
+
+function highlightCard(id) {
+  document.querySelectorAll('.sale-card').forEach(c => c.classList.remove('active'));
+  const card = document.getElementById('card_' + id);
+  if (card) {
+    card.classList.add('active');
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+// ─── DATA FETCHING ─────────────────────────────────────────────────────────────
+const GEO_NS = 'http://www.w3.org/2003/01/geo/wgs84_pos#';
+
+function parseRSSItems(xmlText, lat, lng, prefix) {
+  try {
+    const xml = new DOMParser().parseFromString(xmlText, 'text/xml');
+    const items = xml.querySelectorAll('item');
+    return Array.from(items).map((item, i) => {
+      const getTag = t => item.querySelector(t)?.textContent?.trim() || '';
+      const iLat = item.getElementsByTagNameNS(GEO_NS,'lat')[0]?.textContent;
+      const iLng = item.getElementsByTagNameNS(GEO_NS,'long')[0]?.textContent;
+      const pLat = iLat ? parseFloat(iLat) : null;
+      const pLng = iLng ? parseFloat(iLng) : null;
+      const title = getTag('title');
+      const desc = getTag('description').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
+      const link = getTag('link');
+      return {
+        id: prefix + '_' + i + '_' + (link.slice(-8) || i),
+        title: title || 'Sale',
+        description: desc,
+        url: link,
+        rawDate: getTag('pubDate'),
+        date: getTag('pubDate') ? new Date(getTag('pubDate')).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) : 'This weekend',
+        lat: pLat, lng: pLng,
+        type: guessType(title, desc),
+        dist: (pLat && pLng) ? haversine(lat, lng, pLat, pLng) : null
+      };
+    });
+  } catch { return []; }
+}
+
+async function fetchOne(url, lat, lng, prefix) {
+  // Race all proxies simultaneously — first one with results wins
+  const tryProxy = async (proxyUrl, isJson) => {
+    const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
+    const text = isJson
+      ? ((await res.json()).contents || '')
+      : await res.text();
+    const items = parseRSSItems(text, lat, lng, prefix);
+    if (!items.length) throw new Error('empty');
+    return items;
+  };
+
+  const races = [
+    tryProxy(`https://corsproxy.io/?${encodeURIComponent(url)}`, false),
+    tryProxy(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, true),
+    tryProxy(`https://thingproxy.freeboard.io/fetch/${encodeURIComponent(url)}`, false),
+  ].map(p => p.catch(() => null));
+
+  const results = await Promise.all(races);
+  return results.find(r => r && r.length) || [];
+}
+
+async function fetchCraigslist(lat, lng) {
+  const city = findNearestCLCity(lat, lng);
+  const r = getRadius();
+  const base = `https://${city}.craigslist.org`;
+  const geo = `&lat=${lat}&lon=${lng}&search_distance=${r}&availabilityMode=0&limit=120`;
+
+  // Show demo data immediately so the user sees something right away
+  setStatus('Loading live listings…', false);
+  const demo = getDemoListings(lat, lng);
+  state.listings = demo;
+  state.filtered = demo;
+  sortAndRender();
+  showToast('📍 Showing nearby sales — loading live data…');
+
+  // Fire all searches in parallel with an 8s global cap
+  const searches = Promise.all([
+    fetchOne(`${base}/search/gms?format=rss${geo}`, lat, lng, 'gms'),
+    fetchOne(`${base}/search/sss?format=rss&query=yard+sale${geo}`, lat, lng, 'yrd'),
+    fetchOne(`${base}/search/sss?format=rss&query=estate+sale${geo}`, lat, lng, 'est'),
+    fetchOne(`${base}/search/sss?format=rss&query=garage+sale${geo}`, lat, lng, 'gar'),
+    fetchOne(`${base}/search/sss?format=rss&query=moving+sale${geo}`, lat, lng, 'mov'),
+  ]);
+
+  const timeout = new Promise(res => setTimeout(() => res(null), 9000));
+  const results = await Promise.race([searches, timeout]);
+
+  if (!results) {
+    setStatus('Demo mode (live data timed out)', false);
+    showToast('📡 Showing demo data — live listings unavailable right now');
+    return demo;
+  }
+
+  const all = results.flat();
+
+  if (!all.length) {
+    setStatus('Demo mode (Craigslist unavailable)', false);
+    showToast('⚠️ Could not reach Craigslist — showing demo data');
+    return demo;
+  }
+
+  // Deduplicate by URL
+  const seen = new Set();
+  const unique = all.filter(l => {
+    if (!l.url || seen.has(l.url)) return false;
+    seen.add(l.url);
+    return true;
+  });
+
+  setStatus(`${unique.length} listings · ${city}.craigslist.org`, true);
+  showToast(`✓ ${unique.length} live listings loaded!`);
+  return unique;
+}
+
+// ─── RENDER ────────────────────────────────────────────────────────────────────
+function renderListings(listings) {
+  const container = document.getElementById('listingsContainer');
+  document.getElementById('resultsCount').innerHTML = `<strong>${listings.length} sales</strong> found near you`;
+  document.getElementById('sidebarTitle').textContent = `Sales (${listings.length})`;
+
+  if (!listings.length) {
+    container.innerHTML = '<div class="empty-state"><div class="emoji">🔍</div><p>No sales found in this area.<br>Try expanding your search radius.</p></div>';
+    return;
+  }
+
+  container.innerHTML = listings.map((l, i) => {
+    const inRoute = state.route.some(r => r.id === l.id);
+    const hasGeo = l.lat && l.lng;
+    const distStr = l.dist ? l.dist.toFixed(1) + ' mi' : '';
+    return `
+      <div class="sale-card ${inRoute ? 'in-route' : ''}" id="card_${l.id}" onclick="cardClick('${l.id}')">
+        <div class="card-top">
+          <div class="card-num ${inRoute ? 'route-num' : ''}">${inRoute ? '★' : (i+1)}</div>
+          <div class="card-info">
+            <div class="card-title">${l.title}</div>
+            ${hasGeo ? `<div class="card-addr">📍 ${l.lat.toFixed(4)}, ${l.lng.toFixed(4)}</div>` : '<div class="card-addr">📍 Location not specified</div>'}
+          </div>
+          ${distStr ? `<div class="card-dist">${distStr}</div>` : ''}
+        </div>
+        <div class="card-meta">
+          <span>📅 ${l.date}</span>
+          ${typeTag(l.type)}
+        </div>
+        ${l.description ? `<div class="card-desc">${l.description.slice(0,140)}</div>` : ''}
+        <div class="card-actions">
+          <div class="card-btns">
+            <button class="cbtn view" onclick="event.stopPropagation();openListing('${l.url}')">View →</button>
+            <button class="cbtn ${inRoute ? 'remove-route' : 'add-route'}" onclick="event.stopPropagation();toggleRoute('${l.id}')">
+              ${inRoute ? '✕ Remove' : '+ Route'}
+            </button>
+          </div>
+          ${l.isDemo ? '<span style="font-size:10px;color:#ccc;">demo</span>' : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function sortAndRender() {
+  const sort = document.getElementById('sortSelect').value;
+  let listings = [...state.filtered];
+  if (sort === 'distance') listings.sort((a,b) => (a.dist||999) - (b.dist||999));
+  else if (sort === 'date') listings.sort((a,b) => a.date.localeCompare(b.date));
+  else if (sort === 'title') listings.sort((a,b) => a.title.localeCompare(b.title));
+  renderListings(listings);
+  addMarkers(listings);
+}
+
+// ─── FILTERS ──────────────────────────────────────────────────────────────────
+function applyFilters() {
+  const query = document.getElementById('searchInput').value.toLowerCase().trim();
+  const weekendActive = document.getElementById('chipWeekend').classList.contains('active');
+  const estateActive  = document.getElementById('chipEstate').classList.contains('active');
+  const garageActive  = document.getElementById('chipGarage').classList.contains('active');
+
+  // Weekend = listings posted within the last 7 days (fresh/relevant)
+  const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
+  state.filtered = state.listings.filter(l => {
+    const text = (l.title + ' ' + l.description).toLowerCase();
+
+    // Keyword search
+    if (query && !text.includes(query)) return false;
+
+    // This Weekend — keep only recently posted or demo listings
+    if (weekendActive && l.rawDate) {
+      const posted = new Date(l.rawDate).getTime();
+      if (!isNaN(posted) && posted < oneWeekAgo) return false;
+    }
+
+    // Estate filter — match "estate" anywhere in text
+    if (estateActive && !text.includes('estate')) return false;
+
+    // Garage filter — match garage or moving sale
+    if (garageActive && !text.match(/garage|moving\s*sale/)) return false;
+
+    return true;
+  });
+
+  // Show count feedback on chips
+  document.getElementById('resultsCount').innerHTML =
+    `<strong>${state.filtered.length} sales</strong> found near you`;
+
+  sortAndRender();
+}
+
+async function toggleChip(el) {
+  el.classList.toggle('active');
+
+  // Estate chip: also fetch Craigslist estate sales + show EstateSales.net banner
+  if (el.id === 'chipEstate' && el.classList.contains('active')) {
+    await fetchAndMergeEstateSales();
+    showEstateSalesBanner();
+  } else if (el.id === 'chipEstate') {
+    removeEstateSalesBanner();
+  }
+
+  applyFilters();
+}
+
+async function fetchAndMergeEstateSales() {
+  if (!state.userLat) return;
+  const city = findNearestCLCity(state.userLat, state.userLng);
+  const rssUrl = `https://${city}.craigslist.org/search/gms?query=estate+sale&format=rss&lat=${state.userLat}&lon=${state.userLng}&search_distance=20`;
+  const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(rssUrl)}`;
+  showToast('🏛 Fetching estate sales…');
+  try {
+    const res = await fetch(proxy, { signal: AbortSignal.timeout(10000) });
+    const data = await res.json();
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(data.contents, 'text/xml');
+    const items = xml.querySelectorAll('item');
+    const GEO_NS = 'http://www.w3.org/2003/01/geo/wgs84_pos#';
+    let added = 0;
+    Array.from(items).forEach((item, i) => {
+      const getTag = t => item.querySelector(t)?.textContent?.trim() || '';
+      const rawLat = item.getElementsByTagNameNS(GEO_NS,'lat')[0]?.textContent;
+      const rawLng = item.getElementsByTagNameNS(GEO_NS,'long')[0]?.textContent;
+      const iLat = rawLat ? parseFloat(rawLat) : null;
+      const iLng = rawLng ? parseFloat(rawLng) : null;
+      const title = getTag('title');
+      const id = 'estate_cl_' + i;
+      // Don't add duplicates
+      if (state.listings.find(l => l.title === title)) return;
+      state.listings.push({
+        id, title: title || 'Estate Sale',
+        description: getTag('description').replace(/<[^>]+>/g,' ').trim(),
+        url: getTag('link'), rawDate: getTag('pubDate'),
+        date: getTag('pubDate') ? new Date(getTag('pubDate')).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) : 'This weekend',
+        lat: iLat, lng: iLng, type: 'Estate',
+        dist: (iLat && iLng) ? haversine(state.userLat, state.userLng, iLat, iLng) : null
+      });
+      added++;
+    });
+    showToast(`✓ Added ${added} estate sale listings`);
+  } catch(e) {
+    showToast('Could not fetch extra estate sales');
+  }
+}
+
+function estatesalesNetUrl() {
+  const parts = state.cityLabel.split(',');
+  const city = (parts[0]||'').trim().replace(/\s+/g,'-');
+  const st   = (parts[1]||'').trim();
+  if (city && st) return `https://www.estatesales.net/${st}/${city}/estate-sales`;
+  return 'https://www.estatesales.net';
+}
+
+function showEstateSalesBanner() {
+  removeEstateSalesBanner();
+  const banner = document.createElement('div');
+  banner.id = 'estateBanner';
+  banner.style.cssText = 'background:#e8f0fe;border-bottom:1px solid #c5d5f5;padding:8px 16px;font-size:13px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;';
+  const orgUrl = `https://www.estatesales.org/estate-sales/search?zip=${encodeURIComponent(state.cityLabel)}`;
+  banner.innerHTML = `
+    <span style="font-size:12px;">🏛 More estate sales near you:</span>
+    <div style="display:flex;gap:8px;">
+      <a href="${estatesalesNetUrl()}" target="_blank"
+         style="background:#1a56aa;color:white;padding:5px 12px;border-radius:12px;font-size:12px;font-weight:700;text-decoration:none;">
+        EstateSales.net →
+      </a>
+      <a href="${orgUrl}" target="_blank"
+         style="background:#2d7a52;color:white;padding:5px 12px;border-radius:12px;font-size:12px;font-weight:700;text-decoration:none;">
+        EstateSales.org →
+      </a>
+    </div>`;
+  document.querySelector('.main').insertAdjacentElement('beforebegin', banner);
+}
+
+function removeEstateSalesBanner() {
+  document.getElementById('estateBanner')?.remove();
+}
+
+// ─── ROUTE ────────────────────────────────────────────────────────────────────
+function toggleRoute(id) {
+  const listing = state.listings.find(l => l.id === id);
+  if (!listing) return;
+  const idx = state.route.findIndex(r => r.id === id);
+  if (idx >= 0) {
+    state.route.splice(idx, 1);
+    showToast('Removed from route');
+  } else {
+    if (!listing.lat || !listing.lng) { showToast('⚠️ No location data for this listing'); return; }
+    state.route.push(listing);
+    showToast('✓ Added to route!');
+  }
+  updateRouteUI();
+  applyFilters();
+}
+
+function updateRouteUI() {
+  const n = state.route.length;
+  const btn = document.getElementById('openRouteBtn');
+  const panel = document.getElementById('routePanel');
+  const stopCount = document.getElementById('routeStopCount');
+  const routeCount = document.getElementById('routeCount');
+
+  routeCount.textContent = n > 0 ? `${n} stop${n>1?'s':''} in route` : '';
+  stopCount.textContent = `${n} stop${n>1?'s':''}`;
+
+  if (n > 0) {
+    btn.classList.remove('empty');
+    panel.classList.add('visible');
+  } else {
+    btn.classList.add('empty');
+    panel.classList.remove('visible');
+  }
+}
+
+function openRoute() {
+  if (!state.route.length) { showToast('Add some sales to your route first!'); return; }
+  const start = `${state.userLat},${state.userLng}`;
+  const stops = state.route.map(r => `${r.lat},${r.lng}`).join('/');
+  const url = `https://www.google.com/maps/dir/${start}/${stops}`;
+  window.open(url, '_blank');
+}
+
+function clearRoute() {
+  state.route = [];
+  if (state.routeLine) { state.routeLine.remove(); state.routeLine = null; }
+  updateRouteUI();
+  applyFilters();
+  showToast('Route cleared');
+}
+
+function plotClosestToFarthest() {
+  // Get all listings with geo coords, sorted closest to farthest
+  const withGeo = state.filtered
+    .filter(l => l.lat && l.lng)
+    .sort((a, b) => (a.dist || 999) - (b.dist || 999));
+
+  if (!withGeo.length) {
+    showToast('No listings with location data to plot');
+    return;
+  }
+
+  // Set as the route
+  state.route = withGeo;
+  updateRouteUI();
+  applyFilters();
+
+  // Draw a polyline on the map from user → stop 1 → stop 2 → ...
+  if (state.routeLine) { state.routeLine.remove(); state.routeLine = null; }
+  const points = [
+    [state.userLat, state.userLng],
+    ...withGeo.map(l => [l.lat, l.lng])
+  ];
+  state.routeLine = L.polyline(points, {
+    color: '#4caf7d', weight: 3, opacity: 0.8, dashArray: '8, 5'
+  }).addTo(state.map);
+
+  // Fit map to show the whole route
+  state.map.fitBounds(state.routeLine.getBounds(), { padding: [40, 40] });
+
+  showToast(`✓ Route plotted — ${withGeo.length} stops, closest to farthest`);
+}
+
+function cardClick(id) {
+  highlightCard(id);
+  const listing = state.listings.find(l => l.id === id);
+  if (listing?.lat && listing?.lng && state.map) {
+    state.map.setView([listing.lat, listing.lng], 15, { animate: true });
+    state.markers[id]?.openPopup();
+  }
+}
+
+function openListing(url) {
+  if (url && url !== '#') window.open(url, '_blank');
+  else showToast('No listing URL available (demo data)');
+}
+
+function openGoogleLens() {
+  // Opens Google Lens — on mobile it triggers the camera to photograph items
+  window.open('https://lens.google.com', '_blank');
+  showToast('📷 Point your camera at any item to look it up!');
+}
+
+// ─── LOCATION ─────────────────────────────────────────────────────────────────
+function setStatus(text, live) {
+  document.getElementById('statusText').textContent = text;
+  document.getElementById('statusDot').style.background = live ? '#4caf7d' : '#f9a825';
+}
+
+function getRadius() {
+  return parseInt(document.getElementById('radiusSelect').value) || 10;
+}
+
+async function onRadiusChange() {
+  if (state.searchLat) {
+    drawRadiusCircle(state.searchLat, state.searchLng);
+    await refreshListings();
+  }
+}
+
+function drawRadiusCircle(lat, lng) {
+  if (state.radiusCircle) { state.radiusCircle.remove(); state.radiusCircle = null; }
+  const radiusMeters = getRadius() * 1609.34;
+  state.radiusCircle = L.circle([lat, lng], {
+    radius: radiusMeters,
+    color: '#4caf7d', weight: 2, opacity: 0.6,
+    fillColor: '#4caf7d', fillOpacity: 0.04
+  }).addTo(state.map);
+}
+
+async function refreshListings() {
+  document.getElementById('listingsContainer').innerHTML =
+    '<div class="loading-state"><div class="spinner"></div><p>Refreshing sales…</p></div>';
+  state.listings = []; state.filtered = []; state.route = [];
+  Object.values(state.markers).forEach(m => m.remove());
+  state.markers = {};
+  if (state.routeLine) { state.routeLine.remove(); state.routeLine = null; }
+  updateRouteUI();
+  const listings = await fetchCraigslist(state.searchLat, state.searchLng);
+  state.listings = listings;
+  state.filtered = listings;
+  sortAndRender();
+}
+
+async function start(lat, lng, label, isActualLocation = false) {
+  state.searchLat = lat; state.searchLng = lng;
+  if (isActualLocation) { state.userLat = lat; state.userLng = lng; }
+  state.cityLabel = label;
+  document.getElementById('locationInput').value = label;
+  setStatus('Loading listings…', false);
+
+  // Clear old data
+  state.listings = []; state.filtered = []; state.route = [];
+  Object.values(state.markers).forEach(m => m.remove());
+  state.markers = {};
+  if (state.routeLine) { state.routeLine.remove(); state.routeLine = null; }
+  if (state.radiusCircle) { state.radiusCircle.remove(); state.radiusCircle = null; }
+  updateRouteUI();
+  removeEstateSalesBanner();
+  document.getElementById('listingsContainer').innerHTML =
+    '<div class="loading-state"><div class="spinner"></div><p>Finding sales near ' + label + '…</p></div>';
+
+  // Move or create map
+  if (state.map) {
+    state.map.setView([lat, lng], 12);
+    state.map.eachLayer(l => { if (l._isUserMarker) l.remove(); });
+  } else {
+    initMap(lat, lng);
+    addFindMeControl();
+  }
+
+  // Drop center pin
+  const pinColor = isActualLocation ? '#4caf7d' : '#1a56aa';
+  const pinLabel = isActualLocation ? '📍 You are here' : `📍 ${label}`;
+  const um = L.circleMarker([lat, lng], {
+    radius: 10, fillColor: pinColor, color: 'white', weight: 3, fillOpacity: 1
+  }).addTo(state.map);
+  um._isUserMarker = true;
+  um.bindPopup(`<b>${pinLabel}</b>`);
+
+  drawRadiusCircle(lat, lng);
+
+  const listings = await fetchCraigslist(lat, lng);
+  state.listings = listings;
+  state.filtered = listings;
+  sortAndRender();
+}
+
+function addFindMeControl() {
+  const FindMe = L.Control.extend({
+    options: { position: 'topleft' },
+    onAdd: function() {
+      const btn = L.DomUtil.create('button');
+      btn.innerHTML = '📍 Find Me';
+      btn.style.cssText = 'background:#1a3a2a;color:white;border:none;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.3);margin:4px;';
+      btn.onclick = (e) => { L.DomEvent.stopPropagation(e); locateMe(); };
+      return btn;
+    }
+  });
+  new FindMe().addTo(state.map);
+}
+
+async function locateByIP() {
+  // No browser permission needed — detects city from your internet connection
+  try {
+    const r = await fetch('https://ip-api.com/json/?fields=status,city,regionName,lat,lon');
+    const d = await r.json();
+    if (d.status === 'success' && d.lat) {
+      return { lat: d.lat, lng: d.lon, label: `${d.city}, ${d.regionName}` };
+    }
+  } catch {}
+  // Second fallback
+  try {
+    const r = await fetch('https://ipapi.co/json/');
+    const d = await r.json();
+    if (d.latitude) {
+      return { lat: d.latitude, lng: d.longitude, label: `${d.city}, ${d.region}` };
+    }
+  } catch {}
+  return null;
+}
+
+async function locateMe() {
+  setStatus('Getting your location…', false);
+  document.getElementById('listingsContainer').innerHTML = '<div class="loading-state"><div class="spinner"></div><p>Detecting your location…</p></div>';
+
+  // 1. Try GPS first
+  try {
+    const pos = await new Promise((res, rej) =>
+      navigator.geolocation.getCurrentPosition(res, rej, { timeout: 6000 })
+    );
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
+      const d = await r.json();
+      const city = d.address?.city || d.address?.town || d.address?.village || 'Your Location';
+      const st = d.address?.state_code || '';
+      await start(lat, lng, `${city}, ${st}`, true);
+    } catch {
+      await start(lat, lng, `${lat.toFixed(4)}, ${lng.toFixed(4)}`, true);
+    }
+    return;
+  } catch {}
+
+  // 2. GPS blocked — try IP-based location (no permission needed)
+  setStatus('Using IP location…', false);
+  document.getElementById('listingsContainer').innerHTML = '<div class="loading-state"><div class="spinner"></div><p>Detecting location from your network…</p></div>';
+  const ipLoc = await locateByIP();
+  if (ipLoc) {
+    showToast(`📍 Located via network: ${ipLoc.label}`);
+    await start(ipLoc.lat, ipLoc.lng, ipLoc.label, true);
+    return;
+  }
+
+  // 3. Both failed — ask manually
+  setStatus('Enter your city to search', false);
+  initMap(38.5, -97.5);
+  state.map.setZoom(4);
+  document.getElementById('listingsContainer').innerHTML = `
+    <div class="empty-state" style="padding:32px 20px;">
+      <div class="emoji">📍</div>
+      <p style="font-size:15px;font-weight:700;color:#1a1a1a;margin-bottom:8px;">Enter your location above</p>
+      <p style="font-size:13px;color:#666;margin-bottom:16px;">Type your city or zip and press <strong>Enter</strong>.</p>
+      <p style="font-size:12px;color:#aaa;">Example: <em>Sacramento, CA</em></p>
+    </div>`;
+  const input = document.getElementById('locationInput');
+  input.value = ''; input.placeholder = 'e.g. Sacramento, CA';
+  input.focus(); input.style.borderColor = '#4caf7d';
+}
+
+// Manual city search
+document.getElementById('locationInput').addEventListener('keydown', async (e) => {
+  if (e.key !== 'Enter') return;
+  const val = e.target.value.trim();
+  if (!val) return;
+  setStatus('Searching…', false);
+  document.getElementById('listingsContainer').innerHTML = '<div class="loading-state"><div class="spinner"></div><p>Finding ' + val + '…</p></div>';
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(val)}&format=json&limit=1`);
+    const d = await r.json();
+    if (!d.length) { showToast('Location not found. Try a city name or zip code.'); return; }
+    const lat = parseFloat(d[0].lat);
+    const lng = parseFloat(d[0].lon);
+    if (state.map) { state.map.setView([lat, lng], 13); }
+    await start(lat, lng, val);
+  } catch { showToast('Could not geocode that location.'); }
+});
+
+document.getElementById('searchInput').addEventListener('input', applyFilters);
+
+// ─── FEEDBACK ─────────────────────────────────────────────────────────────────
+let selectedType = 'feedback';
+
+function openFeedback() {
+  document.getElementById('feedbackOverlay').classList.add('open');
+  document.getElementById('fmForm').style.display = 'block';
+  document.getElementById('fmSuccess').style.display = 'none';
+  document.getElementById('fmMessage').focus();
+}
+
+function closeFeedback() {
+  document.getElementById('feedbackOverlay').classList.remove('open');
+  document.getElementById('fmMessage').value = '';
+  document.getElementById('fmName').value = '';
+  selectType('feedback');
+}
+
+function overlayClick(e) {
+  if (e.target === document.getElementById('feedbackOverlay')) closeFeedback();
+}
+
+function selectType(type) {
+  selectedType = type;
+  ['feedback','bug','idea'].forEach(t => {
+    document.getElementById('fmType' + t.charAt(0).toUpperCase() + t.slice(1))
+      .classList.toggle('selected', t === type);
+  });
+  const labels = { feedback: 'What\'s on your mind?', bug: 'Describe the bug — what happened?', idea: 'What feature would you love?' };
+  const placeholders = { feedback: 'Tell us what you think…', bug: 'Steps to reproduce: 1) I tapped… 2) Then…', idea: 'It would be great if…' };
+  document.getElementById('fmMsgLabel').textContent = labels[type];
+  document.getElementById('fmMessage').placeholder = placeholders[type];
+}
+
+async function submitFeedback() {
+  const message = document.getElementById('fmMessage').value.trim();
+  if (!message) { document.getElementById('fmMessage').focus(); return; }
+  const name = document.getElementById('fmName').value.trim() || 'Anonymous';
+  const page = state.cityLabel || 'Unknown location';
+
+  try {
+    const body = new URLSearchParams({
+      'form-name': 'yardsailor-feedback',
+      type: selectedType, name, message, page
+    });
+    await fetch('/', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
+  } catch(e) {}
+
+  document.getElementById('fmForm').style.display = 'none';
+  document.getElementById('fmSuccess').style.display = 'block';
+}
+
+// ─── INVITE GATE ──────────────────────────────────────────────────────────────
+const VALID_CODES = [
+  // Master code (you keep this one)
+  'YARDSAILOR',
+  // Beta tester codes — share one per person so you can track who's testing
+  'YS-BETA-001', 'YS-BETA-002', 'YS-BETA-003', 'YS-BETA-004', 'YS-BETA-005',
+  'YS-BETA-006', 'YS-BETA-007', 'YS-BETA-008', 'YS-BETA-009', 'YS-BETA-010',
+  'YS-BETA-011', 'YS-BETA-012', 'YS-BETA-013', 'YS-BETA-014', 'YS-BETA-015',
+  'YS-BETA-016', 'YS-BETA-017', 'YS-BETA-018', 'YS-BETA-019', 'YS-BETA-020',
+];
+
+function checkInviteCode() {
+  const entered = document.getElementById('inviteCode').value.trim().toUpperCase();
+  if (VALID_CODES.includes(entered)) {
+    localStorage.setItem('ys_invite', entered);
+    document.getElementById('inviteGate').style.opacity = '0';
+    document.getElementById('inviteGate').style.transition = 'opacity 0.5s';
+    setTimeout(() => {
+      document.getElementById('inviteGate').style.display = 'none';
+      locateMe();
+    }, 500);
+  } else {
+    document.getElementById('inviteError').style.display = 'block';
+    document.getElementById('inviteCode').style.borderColor = '#ff7875';
+    setTimeout(() => { document.getElementById('inviteCode').style.borderColor = ''; }, 1500);
+  }
+}
+
+// Allow Enter key on code input
+document.getElementById('inviteCode').addEventListener('keydown', e => {
+  if (e.key === 'Enter') checkInviteCode();
+});
+
+// ─── BOOT ──────────────────────────────────────────────────────────────────────
+window.addEventListener('load', async () => {
+  // Unregister any old service workers so cached old versions can't interfere
+  if ('serviceWorker' in navigator) {
+    const regs = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(regs.map(r => r.unregister()));
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+
+  // Beta mode — no passcode required, open directly
+  document.getElementById('inviteGate').style.display = 'none';
+
+  // Show Sacramento demo data IMMEDIATELY (< 100ms) so nothing is ever blank
+  const SACTO = { lat: 38.581, lng: -121.494, label: 'Sacramento, CA' };
+  state.searchLat = SACTO.lat; state.searchLng = SACTO.lng;
+  state.userLat   = SACTO.lat; state.userLng   = SACTO.lng;
+  state.cityLabel = SACTO.label;
+  document.getElementById('locationInput').value = SACTO.label;
+  initMap(SACTO.lat, SACTO.lng);
+  addFindMeControl();
+  const um = L.circleMarker([SACTO.lat, SACTO.lng], {
+    radius: 10, fillColor: '#4caf7d', color: 'white', weight: 3, fillOpacity: 1
+  }).addTo(state.map);
+  um._isUserMarker = true;
+  drawRadiusCircle(SACTO.lat, SACTO.lng);
+  const demo = getDemoListings(SACTO.lat, SACTO.lng);
+  state.listings = demo; state.filtered = demo;
+  sortAndRender();
+  setStatus('Demo data — tap Find Me for your location', false);
+
+  // Then get real location + live listings in background
+  locateMe();
+});
+
+// ─── TOOLS PANEL ───────────────────────────────────────────────────────────────
+function openTools() {
+  document.getElementById('toolsOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeTools(e) {
+  if (e.target === document.getElementById('toolsOverlay')) closeToolsBtn();
+}
+function closeToolsBtn() {
+  document.getElementById('toolsOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+// ─── FONT SIZE ACCESSIBILITY ───────────────────────────────────────────────────
+let baseFontSize = 14;
+function changeFont(delta) {
+  if (delta === 0) { baseFontSize = 14; }
+  else { baseFontSize = Math.min(22, Math.max(10, baseFontSize + delta)); }
+  document.body.style.fontSize = baseFontSize + 'px';
+  // Scale card text
+  document.querySelectorAll('.card-title, .card-meta, .card-dist').forEach(el => {
+    el.style.fontSize = '';
+  });
+  showToast('Text size: ' + baseFontSize + 'px');
+}
+
+// ─── CAMERA ZOOM ──────────────────────────────────────────────────────────────
+let cameraStream = null;
+let cameraTrack = null;
+
+async function openCamera() {
+  closeToolsBtn();
+  try {
+    const constraints = {
+      video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }
+    };
+    cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+    const video = document.getElementById('cameraFeed');
+    video.srcObject = cameraStream;
+    cameraTrack = cameraStream.getVideoTracks()[0];
+    document.getElementById('cameraOverlay').classList.add('open');
+
+    // Check max zoom
+    const caps = cameraTrack.getCapabilities();
+    const slider = document.getElementById('zoomSlider');
+    if (caps.zoom) {
+      slider.min = caps.zoom.min;
+      slider.max = caps.zoom.max;
+      slider.step = caps.zoom.step || 0.1;
+      slider.value = caps.zoom.min;
+    } else {
+      slider.min = 1; slider.max = 5; slider.value = 1;
+    }
+  } catch(err) {
+    showToast('⚠️ Camera access denied. Please allow camera in Settings.');
+  }
+}
+
+async function setCameraZoom(val) {
+  document.getElementById('zoomLabel').textContent = 'Zoom: ' + parseFloat(val).toFixed(1) + '×';
+  if (cameraTrack) {
+    try {
+      await cameraTrack.applyConstraints({ advanced: [{ zoom: parseFloat(val) }] });
+    } catch(e) {
+      // Zoom not supported natively — CSS scale fallback
+      const video = document.getElementById('cameraFeed');
+      video.style.transform = 'scale(' + val + ')';
+      video.style.transformOrigin = 'center center';
+    }
+  }
+}
+
+function closeCameraZoom() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(t => t.stop());
+    cameraStream = null; cameraTrack = null;
+  }
+  document.getElementById('cameraFeed').srcObject = null;
+  document.getElementById('cameraOverlay').classList.remove('open');
+}
+
+</body>
+</html>
