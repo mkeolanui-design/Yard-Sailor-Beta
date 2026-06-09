@@ -64,7 +64,7 @@ header {
 }
 .logo { display: flex; align-items: center; }
 .logo-accent { color: #7ecf9e; }
-.header-right { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.header-right { display: flex; align-items: center; gap: 8px; font-size: 13px; overflow: hidden; max-width: 60%; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #4caf7d; animation: pulse 2s infinite; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
@@ -548,9 +548,8 @@ header {
     <button onclick="openTools()" style="background:#4caf7d;color:white;border:none;padding:8px 18px;border-radius:20px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;">
       🧰 Tools
     </button>
-    <div class="status-dot" id="statusDot"></div>
-    <span id="statusText" style="color:#aaa;">Detecting location…</span>
-    <span style="color:#4caf7d;font-size:10px;margin-left:8px;opacity:0.7;">v10</span>
+    <div class="status-dot" id="statusDot" style="flex-shrink:0"></div>
+    <span id="statusText" style="color:#aaa;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;">Detecting…</span>
   </div>
 </header>
 
