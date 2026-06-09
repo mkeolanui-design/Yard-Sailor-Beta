@@ -12,7 +12,8 @@
 <link rel="apple-touch-icon" href="icon.svg">
 <title>YardSailor — AI-Powered Sale Locator</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
 // ── DARK MODE ──────────────────────────────────────────────────
 function toggleDark() {
   var isDark = document.body.classList.toggle('dark');
@@ -784,7 +785,8 @@ body.dark .empty-state { color: #888; }
 
 <div class="route-panel" id="routePanel">
   <span>🗺 <strong id="routeStopCount">0 stops</strong> in your route</span>
-  <button class="route-open-btn" onclick="openRoute()">Open in Google Maps →</button>
+  <button class="route-open-btn" onclick="optimizeRoute()" style="background:#7b1fa2;">⚡ Optimize</button>
+  <button class="route-open-btn" onclick="openRoute()">Open in Maps →</button>
   <button class="route-clear-btn" onclick="clearRoute()">✕ Clear</button>
 </div>
 
@@ -1204,80 +1206,62 @@ async function fetchCraigslist(lat, lng) {
   const base = `https://${city}.craigslist.org`;
   const geo = `&lat=${lat}&lon=${lng}&search_distance=${r}&availabilityMode=0&limit=120`;
 
-  setStatus('Searching Craigslist…', false);
+  setStatus('Searching all sources…', false);
   document.getElementById('listingsContainer').innerHTML =
     '<div class="empty-state"><div class="emoji">🔍</div><p>Fetching live listings near you…</p></div>';
   document.getElementById('resultsCount').innerHTML = '<strong>Searching…</strong>';
 
-  // Fire all sources in parallel
-  const esoPromise = fetchEstateSalesOrg(lat, lng);
-  const yssPromise = fetchYardSaleSearch(lat, lng);
+  // Fire ALL sources in parallel immediately — never abandon any of them
+  const esoPromise = fetchEstateSalesOrg(lat, lng).catch(() => []);
+  const yssPromise = fetchYardSaleSearch(lat, lng).catch(() => []);
 
-  // Fire all Craigslist searches in parallel with an 11s global cap
-  const searches = Promise.all([
+  // Craigslist with 11s cap
+  const clSearches = Promise.all([
     fetchOne(`${base}/search/gms?format=rss${geo}`, lat, lng, 'gms'),
     fetchOne(`${base}/search/sss?format=rss&query=yard+sale${geo}`, lat, lng, 'yrd'),
     fetchOne(`${base}/search/sss?format=rss&query=estate+sale${geo}`, lat, lng, 'est'),
     fetchOne(`${base}/search/sss?format=rss&query=garage+sale${geo}`, lat, lng, 'gar'),
     fetchOne(`${base}/search/sss?format=rss&query=moving+sale${geo}`, lat, lng, 'mov'),
   ]);
+  const clTimeout = new Promise(res => setTimeout(() => res(null), 11000));
+  const clResult = await Promise.race([clSearches, clTimeout]);
 
-  const timeout = new Promise(res => setTimeout(() => res(null), 11000));
-  const results = await Promise.race([searches, timeout]);
+  // Craigslist dedup
+  const clRaw = clResult ? clResult.flat() : [];
+  const clSeen = new Set();
+  const clListings = clRaw.filter(l => {
+    if (!l.url || clSeen.has(l.url)) return false;
+    clSeen.add(l.url); return true;
+  });
 
-  if (!results) {
-    setStatus('Craigslist timed out — try again', false);
-    document.getElementById('listingsContainer').innerHTML =
-      '<div class="empty-state"><div class="emoji">📡</div><p>Live data timed out.<br>Check your connection and try searching again.</p></div>';
-    document.getElementById('resultsCount').innerHTML = '<strong>0 sales</strong> found';
-    return [];
-  }
+  // Await ESO + YSS (running in parallel since start, likely already done)
+  const [esoListings, yssListings] = await Promise.all([esoPromise, yssPromise]);
 
-  const all = results.flat();
+  // Merge all, deduplicate by URL/ID
+  const combined = [...clListings, ...esoListings, ...yssListings];
+  const seen = new Set();
+  const final = combined.filter(l => {
+    const key = l.url || l.id;
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  });
 
-  if (!all.length) {
-    setStatus('No listings found nearby', false);
+  if (!final.length) {
+    setStatus('No listings found — try a wider radius', false);
     document.getElementById('listingsContainer').innerHTML =
       '<div class="empty-state"><div class="emoji">🏷️</div><p>No yard sales found near you right now.<br>Try expanding your radius in Tools.</p></div>';
     document.getElementById('resultsCount').innerHTML = '<strong>0 sales</strong> found';
     return [];
   }
 
-  // Deduplicate by URL
-  const seen = new Set();
-  const unique = all.filter(l => {
-    if (!l.url || seen.has(l.url)) return false;
-    seen.add(l.url);
-    return true;
-  });
+  const sources = [
+    clListings.length ? `${clListings.length} Craigslist` : '',
+    esoListings.length ? `${esoListings.length} EstateSales.org` : '',
+    yssListings.length ? `${yssListings.length} YardSaleSearch` : '',
+  ].filter(Boolean);
 
-  // Also fetch EstateSales.org and YardSaleSearch in parallel (already started above)
-  const [esoListings, yssListings] = await Promise.allSettled([
-    esoPromise,
-    yssPromise
-  ]).then(rs => rs.map(r => r.status === 'fulfilled' ? (r.value || []) : []));
-
-  // Merge all sources, deduplicate by URL/ID
-  const combined = [...unique, ...esoListings, ...yssListings];
-  const seen2 = new Set();
-  const final = combined.filter(l => {
-    const key = l.url || l.id;
-    if (seen2.has(key)) return false;
-    seen2.add(key);
-    return true;
-  });
-
-  const clCount = unique.length;
-  const esoCount = esoListings.length;
-  const yssCount = yssListings.length;
-  const sourceStr = [
-    clCount ? `${clCount} Craigslist` : '',
-    esoCount ? `${esoCount} EstateSales.org` : '',
-    yssCount ? `${yssCount} YardSaleSearch` : '',
-  ].filter(Boolean).join(' · ');
-
-  setStatus(`${final.length} listings found`, true);
-  showToast(`✓ ${final.length} listings from ${[clCount?'Craigslist':'', esoCount?'EstateSales.org':'', yssCount?'YardSaleSearch':''].filter(Boolean).join(', ')}`);
+  setStatus(`${final.length} listings · ${sources.join(' + ')}`, true);
+  showToast(`✅ ${final.length} listings — ${sources.join(' · ') || 'all sources'}`);
   return final;
 }
 
@@ -1315,6 +1299,7 @@ function renderListings(listings) {
           <div class="card-btns">
             <button class="cbtn view" onclick="event.stopPropagation();openListing('${l.url}')">View →</button>
             ${(l.lat && l.lng) ? `<button class="cbtn" style="background:#e8f4fd;color:#1565c0;flex-shrink:0;" onclick="event.stopPropagation();getDirections(${l.lat},${l.lng},'${(l.address||l.title||'').replace(/'/g,"\'")}')">📍 Go</button>` : ''}
+            ${(l.lat && l.lng) ? `<button class="cbtn" style="background:#f3e5f5;color:#6a1b9a;flex-shrink:0;" onclick="event.stopPropagation();openStreetView(${l.lat},${l.lng})" title="See Street View before you go">🏠 Preview</button>` : ''}
             <button class="cbtn ${inRoute ? 'remove-route' : 'add-route'}" onclick="event.stopPropagation();toggleRoute('${l.id}')">
               ${inRoute ? '✕ Remove' : '+ Route'}
             </button>
@@ -1496,6 +1481,34 @@ function updateRouteUI() {
   }
 }
 
+
+
+function openStreetView(lat, lng) {
+  window.open(`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`, '_blank');
+}
+
+function optimizeRoute() {
+  if (state.route.length < 2) { showToast('Add at least 2 stops to optimize'); return; }
+  // Nearest-neighbor algorithm from user location
+  const start = { lat: state.userLat, lng: state.userLng };
+  const unvisited = [...state.route];
+  const ordered = [];
+  let current = start;
+  while (unvisited.length) {
+    let nearest = null, nearestDist = Infinity, nearestIdx = 0;
+    unvisited.forEach((s, i) => {
+      const d = haversine(current.lat, current.lng, s.lat, s.lng);
+      if (d < nearestDist) { nearest = s; nearestDist = d; nearestIdx = i; }
+    });
+    ordered.push(nearest);
+    current = nearest;
+    unvisited.splice(nearestIdx, 1);
+  }
+  state.route = ordered;
+  updateRouteUI();
+  plotClosestToFarthest();
+  showToast('✅ Route optimized — shortest path from your location!');
+}
 
 function getDirections(lat, lng, label) {
   // Use address if we have a real one, else fall back to coordinates
@@ -1983,5 +1996,6 @@ function closeCameraZoom() {
   document.getElementById('cameraOverlay').classList.remove('open');
 }
 
+</script>
 </body>
 </html>
