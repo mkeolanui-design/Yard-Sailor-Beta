@@ -1097,6 +1097,107 @@ async function fetchOne(url, lat, lng, prefix) {
   return results.find(r => r && r.length) || [];
 }
 
+
+// ─── ESTATESALES.ORG ──────────────────────────────────────────────────────────
+async function fetchEstateSalesOrg(lat, lng) {
+  try {
+    const parts = (state.cityLabel || '').split(',');
+    const city = (parts[0] || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const stCode = (parts[1] || '').trim().toLowerCase().replace(/[^a-z]/g, '');
+    if (!city || !stCode) return [];
+    const url = `https://estatesales.org/estate-sales/${stCode}/${city}`;
+    const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+    const res = await fetch(proxy, { signal: AbortSignal.timeout(10000) });
+    const json = await res.json();
+    const pageHtml = json.contents || '';
+
+    // Extract embedded JSON array of listings
+    const start = pageHtml.indexOf('[{"id":');
+    if (start < 0) return [];
+    let depth = 0, end = start;
+    for (let i = start; i < Math.min(start + 300000, pageHtml.length); i++) {
+      if (pageHtml[i] === '[') depth++;
+      else if (pageHtml[i] === ']') { depth--; if (depth === 0) { end = i + 1; break; } }
+    }
+    const listings = JSON.parse(pageHtml.slice(start, end));
+    const radius = getRadius();
+
+    return listings
+      .filter(l => l.lat && l.lon && !l.expired && !l.inperson_ended)
+      .map(l => {
+        const d = haversine(lat, lng, parseFloat(l.lat), parseFloat(l.lon));
+        if (d > radius) return null;
+        const addr = l.hide_address
+          ? `${l.city || ''}, ${l.state || ''} ${l.zip || ''}`
+          : `${l.address || ''}, ${l.city || ''}, ${l.state || ''} ${l.zip || ''}`;
+        const dateStr = l.date_from ? l.date_from.slice(0, 10) : (l.inperson_date_from ? l.inperson_date_from.slice(0,10) : '');
+        return {
+          id: 'eso_' + l.id,
+          title: l.title || 'Estate Sale',
+          lat: parseFloat(l.lat),
+          lng: parseFloat(l.lon),
+          address: addr.trim().replace(/^,\s*|,\s*$/, ''),
+          date: dateStr,
+          description: l.descr_sum || (l.descr || '').replace(/<[^>]+>/g,'').slice(0,160),
+          url: 'https://estatesales.org' + l.url,
+          type: 'estate',
+          source: 'EstateSales.org',
+          dist: d
+        };
+      }).filter(Boolean);
+  } catch(e) { return []; }
+}
+
+// ─── YARDSALESEARCH.COM ───────────────────────────────────────────────────────
+async function fetchYardSaleSearch(lat, lng) {
+  try {
+    const parts = (state.cityLabel || '').split(',');
+    const city = (parts[0] || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const stCode = (parts[1] || '').trim().toLowerCase().replace(/[^a-z]/g, '');
+    if (!city || !stCode) return [];
+    const url = `https://www.yardsalesearch.com/garage-sales-${city}-${stCode}.html`;
+    const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+    const res = await fetch(proxy, { signal: AbortSignal.timeout(10000) });
+    const json = await res.json();
+    const pageHtml = json.contents || '';
+
+    // Parse schema.org microdata blocks
+    const blocks = pageHtml.split('itemprop="name"').slice(1);
+    const radius = getRadius();
+    const results = [];
+
+    for (const block of blocks.slice(0, 40)) {
+      try {
+        const urlM   = block.match(/itemprop="url"\s+href="([^"]+)"/);
+        const titleM = block.match(/href="[^"]+">([^<(]+)/);
+        const latM   = block.match(/itemprop="latitude"\s+content="([^"]+)"/);
+        const lngM   = block.match(/itemprop="longitude"\s+content="([^"]+)"/);
+        const startM = block.match(/itemprop="startDate"\s+content="([^"]+)"/);
+        const cityM  = block.match(/itemprop="addressLocality">([^<]+)</);
+        const descM  = block.match(/itemprop="description"[^>]*>([^<]+)/);
+        if (!latM || !lngM || !titleM) continue;
+        const sLat = parseFloat(latM[1]), sLng = parseFloat(lngM[1]);
+        const d = haversine(lat, lng, sLat, sLng);
+        if (d > radius) continue;
+        const idM = urlM ? urlM[1].match(/id=(\d+)/) : null;
+        results.push({
+          id: 'yss_' + (idM ? idM[1] : Math.random().toString(36).slice(2)),
+          title: titleM[1].trim(),
+          lat: sLat, lng: sLng,
+          address: cityM ? `${cityM[1].trim()}, ${(parts[1]||'').trim()}` : '',
+          date: startM ? startM[1] : '',
+          description: descM ? descM[1].replace(/&hellip;|&amp;|&quot;|&#\d+;/g, '...').trim() : '',
+          url: urlM ? urlM[1] : url,
+          type: 'garage',
+          source: 'YardSaleSearch.com',
+          dist: d
+        });
+      } catch(e) {}
+    }
+    return results;
+  } catch(e) { return []; }
+}
+
 async function fetchCraigslist(lat, lng) {
   const city = findNearestCLCity(lat, lng);
   const r = getRadius();
@@ -1108,7 +1209,11 @@ async function fetchCraigslist(lat, lng) {
     '<div class="empty-state"><div class="emoji">🔍</div><p>Fetching live listings near you…</p></div>';
   document.getElementById('resultsCount').innerHTML = '<strong>Searching…</strong>';
 
-  // Fire all searches in parallel with an 11s global cap
+  // Fire all sources in parallel
+  const esoPromise = fetchEstateSalesOrg(lat, lng);
+  const yssPromise = fetchYardSaleSearch(lat, lng);
+
+  // Fire all Craigslist searches in parallel with an 11s global cap
   const searches = Promise.all([
     fetchOne(`${base}/search/gms?format=rss${geo}`, lat, lng, 'gms'),
     fetchOne(`${base}/search/sss?format=rss&query=yard+sale${geo}`, lat, lng, 'yrd'),
@@ -1146,9 +1251,34 @@ async function fetchCraigslist(lat, lng) {
     return true;
   });
 
-  setStatus(`${unique.length} listings · ${city}.craigslist.org`, true);
-  showToast(`✓ ${unique.length} live listings loaded!`);
-  return unique;
+  // Also fetch EstateSales.org and YardSaleSearch in parallel (already started above)
+  const [esoListings, yssListings] = await Promise.allSettled([
+    esoPromise,
+    yssPromise
+  ]).then(rs => rs.map(r => r.status === 'fulfilled' ? (r.value || []) : []));
+
+  // Merge all sources, deduplicate by URL/ID
+  const combined = [...unique, ...esoListings, ...yssListings];
+  const seen2 = new Set();
+  const final = combined.filter(l => {
+    const key = l.url || l.id;
+    if (seen2.has(key)) return false;
+    seen2.add(key);
+    return true;
+  });
+
+  const clCount = unique.length;
+  const esoCount = esoListings.length;
+  const yssCount = yssListings.length;
+  const sourceStr = [
+    clCount ? `${clCount} Craigslist` : '',
+    esoCount ? `${esoCount} EstateSales.org` : '',
+    yssCount ? `${yssCount} YardSaleSearch` : '',
+  ].filter(Boolean).join(' · ');
+
+  setStatus(`${final.length} listings found`, true);
+  showToast(`✓ ${final.length} listings from ${[clCount?'Craigslist':'', esoCount?'EstateSales.org':'', yssCount?'YardSaleSearch':''].filter(Boolean).join(', ')}`);
+  return final;
 }
 
 // ─── RENDER ────────────────────────────────────────────────────────────────────
@@ -1188,7 +1318,7 @@ function renderListings(listings) {
               ${inRoute ? '✕ Remove' : '+ Route'}
             </button>
           </div>
-          ${l.isDemo ? '<span style="font-size:10px;color:#ccc;">demo</span>' : ''}
+          ${l.source ? `<span style="font-size:10px;color:#88b;font-weight:600;">${l.source}</span>` : ''}
         </div>
       </div>`;
   }).join('');
