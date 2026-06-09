@@ -1,4 +1,4 @@
-const CACHE = 'yardsailor-v10';
+const CACHE = 'yardsailor-v11';
 const PRECACHE = [
   '/',
   '/index.html',
