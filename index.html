@@ -1644,65 +1644,38 @@ document.getElementById('inviteCode').addEventListener('keydown', e => {
 });
 
 // ─── BOOT ──────────────────────────────────────────────────────────────────────
-function bootApp() {
-  // Hide gate
-  document.getElementById('inviteGate').style.display = 'none';
-
-  // Register service worker (non-blocking)
+window.addEventListener('load', async () => {
+  // Unregister any old service workers so cached old versions can't interfere
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations()
-      .then(regs => Promise.all(regs.map(r => r.unregister())))
-      .then(() => navigator.serviceWorker.register('/sw.js'))
-      .catch(() => {});
+    const regs = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(regs.map(r => r.unregister()));
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
   }
 
-  // Show Sacramento demo data immediately — no waiting
-  const LAT = 38.581, LNG = -121.494, LABEL = 'Sacramento, CA';
-  state.searchLat = LAT; state.searchLng = LNG;
-  state.userLat = LAT; state.userLng = LNG;
-  state.cityLabel = LABEL;
-  document.getElementById('locationInput').value = LABEL;
+  // Beta mode — no passcode required, open directly
+  document.getElementById('inviteGate').style.display = 'none';
 
-  try {
-    initMap(LAT, LNG);
-    addFindMeControl();
-    L.circleMarker([LAT, LNG], { radius:10, fillColor:'#4caf7d', color:'white', weight:3, fillOpacity:1 })
-      .addTo(state.map);
-    drawRadiusCircle(LAT, LNG);
-  } catch(e) {}
+  // Show Sacramento demo data IMMEDIATELY (< 100ms) so nothing is ever blank
+  const SACTO = { lat: 38.581, lng: -121.494, label: 'Sacramento, CA' };
+  state.searchLat = SACTO.lat; state.searchLng = SACTO.lng;
+  state.userLat   = SACTO.lat; state.userLng   = SACTO.lng;
+  state.cityLabel = SACTO.label;
+  document.getElementById('locationInput').value = SACTO.label;
+  initMap(SACTO.lat, SACTO.lng);
+  addFindMeControl();
+  const um = L.circleMarker([SACTO.lat, SACTO.lng], {
+    radius: 10, fillColor: '#4caf7d', color: 'white', weight: 3, fillOpacity: 1
+  }).addTo(state.map);
+  um._isUserMarker = true;
+  drawRadiusCircle(SACTO.lat, SACTO.lng);
+  const demo = getDemoListings(SACTO.lat, SACTO.lng);
+  state.listings = demo; state.filtered = demo;
+  sortAndRender();
+  setStatus('Demo data — tap Find Me for your location', false);
 
-  try {
-    state.listings = getDemoListings(LAT, LNG);
-    state.filtered = state.listings;
-    sortAndRender();
-  } catch(e) {}
-
-  setStatus('Tap Find Me for your location', false);
-
-  // Silently get real location in background
-  navigator.geolocation.getCurrentPosition(
-    pos => {
-      const { latitude: lat, longitude: lng } = pos.coords;
-      fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`)
-        .then(r => r.json())
-        .then(d => {
-          const city = d.address?.city || d.address?.town || d.address?.village || 'Your Location';
-          start(lat, lng, `${city}, ${d.address?.state_code || ''}`, true);
-        })
-        .catch(() => start(lat, lng, `${lat.toFixed(4)}, ${lng.toFixed(4)}`, true));
-    },
-    () => {
-      // GPS failed — try IP location
-      fetch('https://ip-api.com/json/?fields=status,city,regionName,lat,lon')
-        .then(r => r.json())
-        .then(d => { if (d.status === 'success') start(d.lat, d.lon, `${d.city}, ${d.regionName}`, true); })
-        .catch(() => {});
-    },
-    { timeout: 5000 }
-  );
-}
-
-window.addEventListener('load', bootApp);
+  // Then get real location + live listings in background
+  locateMe();
+});
 
 // ─── TOOLS PANEL ───────────────────────────────────────────────────────────────
 function openTools() {
