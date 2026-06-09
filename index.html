@@ -1314,6 +1314,7 @@ function renderListings(listings) {
         <div class="card-actions">
           <div class="card-btns">
             <button class="cbtn view" onclick="event.stopPropagation();openListing('${l.url}')">View →</button>
+            ${(l.lat && l.lng) ? `<button class="cbtn" style="background:#e8f4fd;color:#1565c0;flex-shrink:0;" onclick="event.stopPropagation();getDirections(${l.lat},${l.lng},'${(l.address||l.title||'').replace(/'/g,"\'")}')">📍 Go</button>` : ''}
             <button class="cbtn ${inRoute ? 'remove-route' : 'add-route'}" onclick="event.stopPropagation();toggleRoute('${l.id}')">
               ${inRoute ? '✕ Remove' : '+ Route'}
             </button>
@@ -1495,11 +1496,24 @@ function updateRouteUI() {
   }
 }
 
+
+function getDirections(lat, lng, label) {
+  // Use address if we have a real one, else fall back to coordinates
+  const dest = encodeURIComponent(label && label.length > 5 && !/^\d+\.\d+/.test(label)
+    ? label + ' ' + lat + ',' + lng
+    : lat + ',' + lng);
+  // Google Maps universal link — works on Android native + iOS
+  const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(lat+','+lng)}&travelmode=driving`;
+  window.open(url, '_blank');
+}
+
 function openRoute() {
   if (!state.route.length) { showToast('Add some sales to your route first!'); return; }
-  const start = `${state.userLat},${state.userLng}`;
-  const stops = state.route.map(r => `${r.lat},${r.lng}`).join('/');
-  const url = `https://www.google.com/maps/dir/${start}/${stops}`;
+  const origin = `${state.userLat},${state.userLng}`;
+  const dest = `${state.route[state.route.length-1].lat},${state.route[state.route.length-1].lng}`;
+  const waypoints = state.route.slice(0, -1).map(r => `${r.lat},${r.lng}`).join('|');
+  let url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(dest)}&travelmode=driving`;
+  if (waypoints) url += `&waypoints=${encodeURIComponent(waypoints)}`;
   window.open(url, '_blank');
 }
 
