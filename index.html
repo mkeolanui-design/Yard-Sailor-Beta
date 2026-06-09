@@ -1673,8 +1673,45 @@ window.addEventListener('load', async () => {
   sortAndRender();
   setStatus('Demo data — tap Find Me for your location', false);
 
-  // Then get real location + live listings in background
-  locateMe();
+  // Silently detect real location in background — don't wipe the demo listings
+  (async () => {
+    try {
+      const pos = await new Promise((res, rej) =>
+        navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000 })
+      );
+      const lat = pos.coords.latitude, lng = pos.coords.longitude;
+      setStatus('Found your location!', false);
+      try {
+        const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
+        const d = await r.json();
+        const city = d.address?.city || d.address?.town || d.address?.village || 'Your Location';
+        const st = d.address?.state_code || '';
+        await start(lat, lng, `${city}, ${st}`, true);
+      } catch {
+        await start(lat, lng, `${lat.toFixed(4)}, ${lng.toFixed(4)}`, true);
+      }
+    } catch {
+      // GPS blocked — try IP location silently
+      try {
+        const r = await fetch('https://ip-api.com/json/?fields=status,city,regionName,lat,lon');
+        const d = await r.json();
+        if (d.status === 'success' && d.lat) {
+          await start(d.lat, d.lon, `${d.city}, ${d.regionName}`, true);
+          return;
+        }
+      } catch {}
+      try {
+        const r = await fetch('https://ipapi.co/json/');
+        const d = await r.json();
+        if (d.latitude) {
+          await start(d.latitude, d.longitude, `${d.city}, ${d.region}`, true);
+          return;
+        }
+      } catch {}
+      // All location methods failed — demo data stays, prompt user
+      setStatus('Tap Find Me or type your city above', false);
+    }
+  })();
 });
 
 // ─── TOOLS PANEL ───────────────────────────────────────────────────────────────
