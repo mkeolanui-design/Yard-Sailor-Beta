@@ -1103,15 +1103,12 @@ async function fetchCraigslist(lat, lng) {
   const base = `https://${city}.craigslist.org`;
   const geo = `&lat=${lat}&lon=${lng}&search_distance=${r}&availabilityMode=0&limit=120`;
 
-  // Show demo data immediately so the user sees something right away
-  setStatus('Loading live listings…', false);
-  const demo = getDemoListings(lat, lng);
-  state.listings = demo;
-  state.filtered = demo;
-  sortAndRender();
-  showToast('📍 Showing nearby sales — loading live data…');
+  setStatus('Searching Craigslist…', false);
+  document.getElementById('listingsContainer').innerHTML =
+    '<div class="empty-state"><div class="emoji">🔍</div><p>Fetching live listings near you…</p></div>';
+  document.getElementById('resultsCount').innerHTML = '<strong>Searching…</strong>';
 
-  // Fire all searches in parallel with an 8s global cap
+  // Fire all searches in parallel with an 11s global cap
   const searches = Promise.all([
     fetchOne(`${base}/search/gms?format=rss${geo}`, lat, lng, 'gms'),
     fetchOne(`${base}/search/sss?format=rss&query=yard+sale${geo}`, lat, lng, 'yrd'),
@@ -1120,21 +1117,25 @@ async function fetchCraigslist(lat, lng) {
     fetchOne(`${base}/search/sss?format=rss&query=moving+sale${geo}`, lat, lng, 'mov'),
   ]);
 
-  const timeout = new Promise(res => setTimeout(() => res(null), 9000));
+  const timeout = new Promise(res => setTimeout(() => res(null), 11000));
   const results = await Promise.race([searches, timeout]);
 
   if (!results) {
-    setStatus('Demo mode (live data timed out)', false);
-    showToast('📡 Showing demo data — live listings unavailable right now');
-    return demo;
+    setStatus('Craigslist timed out — try again', false);
+    document.getElementById('listingsContainer').innerHTML =
+      '<div class="empty-state"><div class="emoji">📡</div><p>Live data timed out.<br>Check your connection and try searching again.</p></div>';
+    document.getElementById('resultsCount').innerHTML = '<strong>0 sales</strong> found';
+    return [];
   }
 
   const all = results.flat();
 
   if (!all.length) {
-    setStatus('Demo mode (Craigslist unavailable)', false);
-    showToast('⚠️ Could not reach Craigslist — showing demo data');
-    return demo;
+    setStatus('No listings found nearby', false);
+    document.getElementById('listingsContainer').innerHTML =
+      '<div class="empty-state"><div class="emoji">🏷️</div><p>No yard sales found near you right now.<br>Try expanding your radius in Tools.</p></div>';
+    document.getElementById('resultsCount').innerHTML = '<strong>0 sales</strong> found';
+    return [];
   }
 
   // Deduplicate by URL
@@ -1714,23 +1715,15 @@ window.addEventListener('load', function() {
   // No passcode required
   document.getElementById('inviteGate').style.display = 'none';
 
-  // Show Sacramento demo data immediately — synchronous, always works
-  var LAT = 38.581, LNG = -121.494, LABEL = 'Sacramento, CA';
-  state.searchLat = LAT; state.searchLng = LNG;
-  state.userLat = LAT; state.userLng = LNG;
-  state.cityLabel = LABEL;
-  document.getElementById('locationInput').value = LABEL;
-  initMap(LAT, LNG);
+  // Init map at US center — real location loaded below
+  initMap(39.5, -98.35);
   addFindMeControl();
-  L.circleMarker([LAT, LNG], {
-    radius: 10, fillColor: '#4caf7d', color: 'white', weight: 3, fillOpacity: 1
-  }).addTo(state.map);
-  state.listings = getDemoListings(LAT, LNG);
-  state.filtered = state.listings;
-  sortAndRender();
-  setStatus('Tap Find Me for your location', false);
+  setStatus('Detecting your location…', false);
+  document.getElementById('listingsContainer').innerHTML =
+    '<div class="empty-state"><div class="emoji">📍</div><p>Detecting your location…</p></div>';
+  document.getElementById('resultsCount').innerHTML = '<strong>Finding your area…</strong>';
 
-  // Background location — callback style, never blocks or wipes listings
+  // Get real location — GPS first, IP fallback
   navigator.geolocation.getCurrentPosition(
     function(pos) {
       var lat = pos.coords.latitude, lng = pos.coords.longitude;
@@ -1743,12 +1736,25 @@ window.addEventListener('load', function() {
         }).catch(function(){ start(lat, lng, lat.toFixed(4)+','+lng.toFixed(4), true); });
     },
     function() {
+      // GPS denied/failed — try IP geolocation
       fetch('https://ip-api.com/json/?fields=status,city,regionName,lat,lon')
         .then(function(r){ return r.json(); })
-        .then(function(d){ if(d.status==='success') start(d.lat,d.lon,d.city+', '+d.regionName,true); })
-        .catch(function(){});
+        .then(function(d){
+          if(d.status==='success') {
+            start(d.lat, d.lon, d.city+', '+d.regionName, true);
+          } else {
+            setStatus('Could not detect location — search above', false);
+            document.getElementById('listingsContainer').innerHTML =
+              '<div class="empty-state"><div class="emoji">🗺️</div><p>Enter a city above to search for sales.</p></div>';
+          }
+        })
+        .catch(function(){
+          setStatus('Could not detect location — search above', false);
+          document.getElementById('listingsContainer').innerHTML =
+            '<div class="empty-state"><div class="emoji">🗺️</div><p>Enter a city above to search for sales.</p></div>';
+        });
     },
-    { timeout: 5000, enableHighAccuracy: false }
+    { timeout: 8000, enableHighAccuracy: false }
   );
 });
 
