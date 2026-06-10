@@ -1247,11 +1247,11 @@ async function fetchCraigslist(lat, lng) {
   });
 
   if (!final.length) {
-    setStatus('No listings found — try a wider radius', false);
-    document.getElementById('listingsContainer').innerHTML =
-      '<div class="empty-state"><div class="emoji">🏷️</div><p>No yard sales found near you right now.<br>Try expanding your radius in Tools.</p></div>';
-    document.getElementById('resultsCount').innerHTML = '<strong>0 sales</strong> found';
-    return [];
+    // Live sources returned nothing — show sample listings so the app stays usable
+    const demo = getDemoListings(lat, lng);
+    setStatus('Sample data — live sources unavailable', false);
+    showToast('📡 Live listings unavailable right now — showing sample sales so you can explore');
+    return demo;
   }
 
   const sources = [
