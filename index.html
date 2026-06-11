@@ -607,6 +607,7 @@ body.dark .empty-state { color: #888; }
     </svg>
   </div>
   <div class="header-right">
+    <button onclick="openPostSale()" style="background:#f9a825;color:#1a3a2a;border:none;padding:8px 14px;border-radius:20px;font-size:14px;font-weight:800;cursor:pointer;flex-shrink:0;">+ Post Sale</button>
     <button onclick="openTools()" style="background:#4caf7d;color:white;border:none;padding:8px 18px;border-radius:20px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;">
       🧰 Tools
     </button>
@@ -805,6 +806,32 @@ body.dark .empty-state { color: #888; }
 <button id="feedbackBtn" onclick="openFeedback()">💬 Feedback</button>
 
 <!-- Feedback modal -->
+<div id="postSaleOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:9000;align-items:center;justify-content:center;padding:16px;" onclick="closePostSale(event)">
+  <div style="background:white;border-radius:16px;max-width:440px;width:100%;max-height:90vh;overflow-y:auto;padding:22px;box-sizing:border-box;" onclick="event.stopPropagation()">
+    <h2 style="margin:0 0 4px;color:#1a3a2a;">&#128205; Post Your Sale</h2>
+    <p style="margin:0 0 14px;color:#666;font-size:13px;">Free during beta &mdash; your sale shows on the map for everyone nearby.</p>
+    <label style="font-size:12px;font-weight:700;color:#333;">Sale title *</label>
+    <input id="psTitle" maxlength="120" placeholder="e.g. Huge Multi-Family Garage Sale" style="width:100%;padding:10px;margin:4px 0 12px;border:1px solid #ccc;border-radius:8px;font-size:14px;box-sizing:border-box;">
+    <label style="font-size:12px;font-weight:700;color:#333;">Address (or cross streets + city) *</label>
+    <input id="psAddress" placeholder="123 Main St, Sacramento, CA" style="width:100%;padding:10px;margin:4px 0 12px;border:1px solid #ccc;border-radius:8px;font-size:14px;box-sizing:border-box;">
+    <label style="font-size:12px;font-weight:700;color:#333;">Type of sale</label>
+    <select id="psType" style="width:100%;padding:10px;margin:4px 0 12px;border:1px solid #ccc;border-radius:8px;font-size:14px;box-sizing:border-box;"><option>Yard</option><option>Garage</option><option>Estate</option><option>Moving</option><option>Multi-Family</option></select>
+    <div style="display:flex;gap:10px;">
+      <div style="flex:1;"><label style="font-size:12px;font-weight:700;color:#333;">Dates</label>
+      <input id="psDates" placeholder="Sat-Sun, Jun 13-14" style="width:100%;padding:10px;margin:4px 0 12px;border:1px solid #ccc;border-radius:8px;font-size:14px;box-sizing:border-box;"></div>
+      <div style="flex:1;"><label style="font-size:12px;font-weight:700;color:#333;">Times</label>
+      <input id="psTimes" placeholder="7am-2pm" style="width:100%;padding:10px;margin:4px 0 12px;border:1px solid #ccc;border-radius:8px;font-size:14px;box-sizing:border-box;"></div>
+    </div>
+    <label style="font-size:12px;font-weight:700;color:#333;">What are you selling?</label>
+    <textarea id="psDesc" maxlength="1500" rows="3" placeholder="Furniture, tools, kids clothes, collectibles..." style="width:100%;padding:10px;margin:4px 0 8px;border:1px solid #ccc;border-radius:8px;font-size:14px;box-sizing:border-box;"></textarea>
+    <div id="psStatus" style="color:#c0392b;font-size:13px;min-height:18px;margin-bottom:8px;"></div>
+    <div style="display:flex;gap:10px;">
+      <button onclick="submitPostSale()" style="flex:1;background:#1a3a2a;color:white;border:none;padding:12px;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;">Post My Sale &#127881;</button>
+      <button onclick="closePostSaleBtn()" style="background:#eee;color:#333;border:none;padding:12px 16px;border-radius:10px;font-size:15px;cursor:pointer;">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div id="feedbackOverlay" onclick="overlayClick(event)">
   <div id="feedbackModal">
     <div class="fm-handle"></div>
@@ -1213,6 +1240,7 @@ async function fetchCraigslist(lat, lng) {
 
   // Fire ALL sources in parallel immediately — never abandon any of them
   const esoPromise = fetchEstateSalesOrg(lat, lng).catch(() => []);
+  const ysPromise = fetchYardSailorSales(lat, lng).catch(() => []);
   const yssPromise = fetchYardSaleSearch(lat, lng).catch(() => []);
 
   // Craigslist with 11s cap
@@ -1235,10 +1263,10 @@ async function fetchCraigslist(lat, lng) {
   });
 
   // Await ESO + YSS (running in parallel since start, likely already done)
-  const [esoListings, yssListings] = await Promise.all([esoPromise, yssPromise]);
+  const [esoListings, yssListings, ysListings] = await Promise.all([esoPromise, yssPromise, ysPromise]);
 
   // Merge all, deduplicate by URL/ID
-  const combined = [...clListings, ...esoListings, ...yssListings];
+  const combined = [...ysListings, ...clListings, ...esoListings, ...yssListings];
   const seen = new Set();
   const final = combined.filter(l => {
     const key = l.url || l.id;
@@ -1255,6 +1283,7 @@ async function fetchCraigslist(lat, lng) {
   }
 
   const sources = [
+    ysListings.length ? ysListings.length + ' YardSailor' : '',
     clListings.length ? `${clListings.length} Craigslist` : '',
     esoListings.length ? `${esoListings.length} EstateSales.org` : '',
     yssListings.length ? `${yssListings.length} YardSaleSearch` : '',
@@ -1809,6 +1838,70 @@ function selectType(type) {
   const placeholders = { feedback: 'Tell us what you think…', bug: 'Steps to reproduce: 1) I tapped… 2) Then…', idea: 'It would be great if…' };
   document.getElementById('fmMsgLabel').textContent = labels[type];
   document.getElementById('fmMessage').placeholder = placeholders[type];
+}
+
+// ----- YARDSAILOR COMMUNITY LISTINGS (Supabase) -----
+const YS_DB = 'https://zsrbskmuxzspgmrkzhgx.supabase.co/rest/v1';
+const YS_KEY = 'sb_publishable_BYKabnPVKVJUXIu64m8bsg_-noBrKUn';
+
+async function fetchYardSailorSales(lat, lng) {
+  try {
+    const r = await fetch(YS_DB + '/sales?select=*&order=created_at.desc&limit=200', { headers: { apikey: YS_KEY, Authorization: 'Bearer ' + YS_KEY } });
+    const rows = await r.json();
+    if (!Array.isArray(rows)) return [];
+    return rows.map(function(s) { return {
+      id: 'ys_' + s.id,
+      title: '\u2B50 ' + s.title,
+      description: (s.address ? '\uD83D\uDCCD ' + s.address + ' \u2014 ' : '') + (s.description || '') + (s.times ? ' \u00B7 ' + s.times : ''),
+      url: '#',
+      rawDate: s.created_at,
+      date: s.sale_dates || 'This weekend',
+      lat: s.lat, lng: s.lng,
+      type: s.sale_type || 'Yard',
+      isCommunity: true,
+      dist: (s.lat && s.lng) ? haversine(lat, lng, s.lat, s.lng) : null
+    }; }).filter(function(l) { return l.dist == null || l.dist <= 75; });
+  } catch (e) { return []; }
+}
+
+function openPostSale() { document.getElementById('postSaleOverlay').style.display = 'flex'; }
+function closePostSale(e) { if (!e || e.target === document.getElementById('postSaleOverlay')) document.getElementById('postSaleOverlay').style.display = 'none'; }
+function closePostSaleBtn() { document.getElementById('postSaleOverlay').style.display = 'none'; }
+
+async function submitPostSale() {
+  const title = document.getElementById('psTitle').value.trim();
+  const address = document.getElementById('psAddress').value.trim();
+  const type = document.getElementById('psType').value;
+  const dates = document.getElementById('psDates').value.trim();
+  const times = document.getElementById('psTimes').value.trim();
+  const desc = document.getElementById('psDesc').value.trim();
+  const status = document.getElementById('psStatus');
+  if (!title) { status.textContent = 'Please give your sale a title.'; return; }
+  if (!address) { status.textContent = 'Please enter the address or cross streets.'; return; }
+  status.textContent = 'Finding that address on the map...';
+  let lat = null, lng = null;
+  try {
+    const g = await fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(address) + '&format=json&limit=1');
+    const d = await g.json();
+    if (d.length) { lat = parseFloat(d[0].lat); lng = parseFloat(d[0].lon); }
+  } catch (e) {}
+  if (lat == null) { status.textContent = 'Could not find that address - try adding the city, e.g. 123 Main St, Sacramento, CA'; return; }
+  status.textContent = 'Posting your sale...';
+  try {
+    const r = await fetch(YS_DB + '/sales', {
+      method: 'POST',
+      headers: { apikey: YS_KEY, Authorization: 'Bearer ' + YS_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: title, description: desc, sale_type: type, address: address, lat: lat, lng: lng, sale_dates: dates, times: times })
+    });
+    if (r.status !== 201) throw new Error('post failed ' + r.status);
+    status.textContent = '';
+    closePostSaleBtn();
+    showToast('\uD83C\uDF89 Your sale is live on YardSailor!');
+    ['psTitle','psAddress','psDates','psTimes','psDesc'].forEach(function(i) { document.getElementById(i).value = ''; });
+    if (state.searchLat) { refreshListings(); }
+  } catch (e) {
+    status.textContent = 'Something went wrong posting - please try again.';
+  }
 }
 
 async function submitFeedback() {
