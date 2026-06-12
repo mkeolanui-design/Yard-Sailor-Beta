@@ -1844,6 +1844,9 @@ function selectType(type) {
 const YS_DB = 'https://zsrbskmuxzspgmrkzhgx.supabase.co/rest/v1';
 const YS_KEY = 'sb_publishable_BYKabnPVKVJUXIu64m8bsg_-noBrKUn';
 
+// Privacy-friendly visit counter - logs only a timestamp, nothing personal
+(function(){ try { if (!sessionStorage.getItem('ys_visit_logged')) { sessionStorage.setItem('ys_visit_logged','1'); fetch(YS_DB + '/visits', { method:'POST', headers:{ apikey:YS_KEY, Authorization:'Bearer '+YS_KEY, 'Content-Type':'application/json' }, body: JSON.stringify({ path: location.pathname }) }); } } catch(e) {} })();
+
 async function fetchYardSailorSales(lat, lng) {
   try {
     const r = await fetch(YS_DB + '/sales?select=*&order=created_at.desc&limit=200', { headers: { apikey: YS_KEY, Authorization: 'Bearer ' + YS_KEY } });
